@@ -1,0 +1,176 @@
+project:
+  name: SMB-Q6R
+  description: Teach Pendant UI for 6-axis Fanuc 6R robot driven by CodeSys SMB-MAT-LC-C07 PLC
+  version: 0.0.1
+  language: C++17
+  status: phase-0-bootstrapping
+  origin: New project, kicked off 2026-05-11
+  owner_email: zzafercakar@gmail.com
+
+target_hardware:
+  vendor: Shenzhen Lavichip Technology Co., Ltd
+  model: HN00-09Q6
+  variant: V2.0
+  soc:
+    family: Rockchip RK3568 (inferred from rk805 PMIC and Mali GPU)
+    cpu: 4x ARM Cortex-A53 @ 1.2 GHz (boost 1.8 GHz)
+    arch: aarch64 (ARMv8-A)
+    gpu: Mali-G52 MP2
+  memory:
+    ram: 2 GB DDR4
+    storage: 16 GB eMMC (root: 5.3 GB partition)
+  display:
+    size: 10.1 inch TFT
+    resolution: 1280x800
+    touch: Ilitek capacitive multi-touch
+  hmi_controls:
+    physical_buttons: 14 customizable tactile (2x7 layout)
+    emergency_stop: NC dual-contact
+    enable_switch: 3-stage 2-contact (deactivated / enabled / panic)
+    key_switch: 3-position (Manual / Stop / Auto)
+    indicator_leds: [Stop_Red, Servo_Green, Enable_Green]
+    jog_wheel: rotary encoder with click
+    buzzer: 1 piezo via PWM
+  io_ports:
+    aviation_connector: 16-pin
+    ethernet: 100 Mbit
+    usb: USB 2.0 Type-A host
+    sd_card: up to 32 GB
+    serial: RS485 (via aviation)
+  environmental:
+    operating_temp: -20C..60C
+    storage_temp: -25C..70C
+    humidity: 10-90% RH non-condensing
+    ingress: IP65 front panel, IP54 overall
+    drop_rating: 1 m (with case)
+    input_voltage: 18-75 VDC
+    rated_power: <5 W
+
+device_runtime:
+  ip_address: 192.168.1.245
+  network_interface: eth1
+  ssh_user: Tronlong
+  ssh_password: ""
+  os:
+    distro: Ubuntu 20.04.6 LTS (Focal Fossa)
+    kernel: 5.10.209-rt89 (PREEMPT_RT)
+    hostname: langyuxin
+    build_date: 2025-07-11
+  qt:
+    version: 5.15.10
+    install_root: /usr/lib/qt-5.15.10
+    qpa_platform: xcb
+    display: ":0"
+  open_ports: [22, 23, 80]
+  preinstalled_app: /userfs/app/lyx_appDemo
+  app_install_path: /userfs/app/
+  startup_hook: /etc/profile.d/qt_env.sh
+
+architecture:
+  pattern: "Layered: UI -> Core Logic -> Drivers"
+  layers:
+    - name: UI
+      tech: Qt 5.15.10 Widgets (default) or QML (decision: phase 1)
+      dir: ui/
+      description: Touch-first interface, physical button overlay, jog screen, IO screen, program editor
+    - name: Core
+      tech: C++17
+      dir: core/
+      description: State machines (mode/safety), command builder, program runner, kinematics preview
+    - name: Drivers
+      tech: C++17
+      dir: drivers/
+      description: HwIo (hardware abstraction), PlcLink (protocol client), SafetyMonitor
+  threads:
+    - name: UI thread
+      role: Qt event loop, rendering, user input
+    - name: Safety monitor thread
+      role: Real-time poll of /dev/buttonstop and emergency stop GPIO; FIFO scheduling
+    - name: PLC link thread
+      role: Async network I/O to PLC, request/reply, subscription updates
+    - name: HW input thread
+      role: Blocking read on /dev/buttons and /dev/input/event* events
+
+tech_stack:
+  language: C++17
+  build_system: CMake 3.16+
+  ui_toolkit: Qt 5.15.10 (Widgets primary candidate; QML alternative)
+  protocol_candidates:
+    - name: Modbus TCP
+      library: libmodbus
+      pros: simple, broadly supported by CodeSys, easy debugging
+      cons: no real-time guarantee, limited type system
+    - name: OPC UA
+      library: open62541
+      pros: modern, type-rich, structured, browseable
+      cons: heavier client, learning curve
+    - name: CodeSys symbolic ADS-like
+      library: codesys-runtime SDK if licensed
+      pros: native to PLC vendor
+      cons: licensing, less portable
+  testing: GoogleTest (planned)
+  ci: GitHub Actions self-hosted (planned)
+
+plc:
+  model: SMB-MAT-LC-C07
+  runtime: CodeSys
+  role: low-level motion control, kinematics, servo command, EtherCAT master (likely)
+  interface: TCP/IP from teach pendant; protocol TBD (see protocol_candidates)
+  notes:
+    - CodeSys typically exposes Modbus TCP server and OPC UA server
+    - Symbols/variables in PLC project must be exposed via the chosen protocol
+    - Watchdog/heartbeat between pendant and PLC is mandatory
+
+robot:
+  topology: 6-axis articulated (Fanuc 6R)
+  joints: [J1_base, J2_shoulder, J3_elbow, J4_forearm_roll, J5_wrist_pitch, J6_wrist_roll]
+  kinematic_responsibility: PLC handles FK/IK; pendant may include preview FK only
+  jog_modes:
+    - joint (per-axis +/- with handwheel)
+    - cartesian_world
+    - cartesian_tool
+    - cartesian_user_frame
+  required_pendant_features:
+    - mode awareness (lock auto features outside Auto)
+    - hold-to-jog with Enable Switch latch
+    - position display (live joint angles + Cartesian XYZRPY)
+    - IO viewer + manual force
+    - alarm/log stream
+    - program list / load / run / step
+    - frame editor (tool, user, base)
+
+critical_rules:
+  - "Hardware device file descriptors (/dev/leds, /dev/pwm, /dev/buttons, /dev/buttonstop) must be opened exactly once per process; reopening corrupts state"
+  - "Safety inputs (Enable Switch S1/S2, Emergency Stop NC) must be polled in a dedicated thread, never blocked by UI"
+  - "PLC link must be asynchronous: UI never blocks on a network round-trip"
+  - "Mode switch state (Auto/Manual/Stop) gates feature access — features must check before acting"
+  - "Watchdog from pendant to PLC: missed heartbeat must trigger soft stop"
+  - "All hardware paths and Qt build flags pinned to RK3568 + Ubuntu 20.04 — do not assume generic Linux"
+
+reference_projects:
+  cadnc:
+    path: /home/embed/Dev/CADNC/
+    usage: ".ai/ layout pattern; modern Qt6 CAD architecture example"
+  sodoo:
+    path: /home/embed/Dev/SODOO/
+    usage: Enterprise .ai/ layout with extensive documentation set
+  milcad:
+    path: /home/embed/Dev/MilCAD/
+    usage: Previous CAD/CAM project; CAM module is an inspiration for program editor UX
+
+reference_documents:
+  hn09q6_datasheet:
+    path: /home/embed/Dev/QT6/TeachPendant/HN00-09Q6 en-US.pdf
+    summary: Full product specification (English)
+  qt_teach_pendant_manual:
+    path: /home/embed/Dev/QT6/TeachPendant/QT Teach pendant devlepoment manual.pdf
+    summary: Lavichip Qt application development guide (covers HT0803/HT0804; mostly applicable to HN09Q6)
+  hw_demos:
+    path: /home/embed/Dev/QT6/TeachPendant/2. Interface development demo/HWInterfaceDemo/
+    contains: [backlight, button, led, matrixKeys, pwm, rotaryEncoder, wheel]
+    summary: Per-peripheral Qt demo source
+
+communication:
+  code_and_comments: English
+  user_communication: Turkish
+  commit_messages: English (Conventional Commits)

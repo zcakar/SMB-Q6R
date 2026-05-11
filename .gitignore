@@ -1,0 +1,68 @@
+# Build artifacts
+build/
+build-*/
+out/
+*.o
+*.obj
+*.a
+*.so
+*.so.*
+*.dylib
+*.exe
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CMakeUserPresets.json
+CTestTestfile.cmake
+Testing/
+install_manifest.txt
+
+# Qt
+*.moc
+moc_*.cpp
+moc_*.h
+*.qmlc
+*.jsc
+qrc_*.cpp
+ui_*.h
+*.pro.user
+*.pro.user.*
+.qtc_clangd/
+
+# IDE
+.vscode/
+.vs/
+.idea/
+*.swp
+*.swo
+*.bak
+*~
+
+# Logs
+*.log
+logs/
+.remember/logs/
+
+# Local environment
+.env
+.env.local
+secrets/
+*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Generated
+docs/_build/
+docs/html/
+
+# Cihazdan çekilmiş sysroot (büyük)
+sysroot/
+sysroot-*/
+
+# Geçici / scratch
+tmp/
+scratch/
