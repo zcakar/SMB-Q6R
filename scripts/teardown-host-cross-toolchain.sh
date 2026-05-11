@@ -27,7 +27,6 @@ apt-get remove --purge -y \
     'qml-module-qtquick-layouts:arm64' \
     'qml-module-qtquick2:arm64' \
     'libqt5quickcontrols2-5:arm64' \
-    'pkg-config-aarch64-linux-gnu' \
     || true
 
 apt-get autoremove -y

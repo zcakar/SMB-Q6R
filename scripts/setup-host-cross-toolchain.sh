@@ -75,10 +75,11 @@ echo "==> 4/6: apt update"
 apt-get update
 
 echo "==> 5/6: cross-compile toolchain + Qt 5 arm64 dev paketleri kur"
+# Not: pkg-config Ubuntu Noble'de multiarch-aware; ayri 'pkg-config-aarch64-linux-gnu'
+# paketi yok. Toolchain file PKG_CONFIG_LIBDIR ile arm64 .pc yollarini hedefler.
 DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     crossbuild-essential-arm64 \
     pkg-config \
-    pkg-config-aarch64-linux-gnu \
     qtbase5-dev:arm64 \
     qtbase5-dev-tools \
     qtdeclarative5-dev:arm64 \
