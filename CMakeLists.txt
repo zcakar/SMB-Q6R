@@ -30,7 +30,11 @@ endif()
 add_compile_options(-Wall -Wextra -Wpedantic -Wshadow -Wconversion -Wno-unused-parameter)
 
 # ---------- Dependencies ----------
-find_package(Qt5 5.12 REQUIRED COMPONENTS Core Quick QuickControls2 Qml Gui)
+# Linked against device-side packages: libqt5{core,gui,qml,quick}5 only.
+# We intentionally do NOT pull in QuickControls2 / Layouts / Window QML modules
+# — those .deb's are not installed on the HN00-09Q6 system Qt 5.12.8. We build
+# every UI primitive from QtQuick 2 (Item / Rectangle / Text / MouseArea).
+find_package(Qt5 5.12 REQUIRED COMPONENTS Core Qml Quick Gui)
 
 # ---------- Sources ----------
 set(SMB_Q6R_SOURCES
@@ -56,7 +60,6 @@ target_link_libraries(smb_q6r
         Qt5::Gui
         Qt5::Qml
         Qt5::Quick
-        Qt5::QuickControls2
 )
 
 target_include_directories(smb_q6r PRIVATE src)

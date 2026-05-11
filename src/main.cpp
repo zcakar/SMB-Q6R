@@ -1,13 +1,15 @@
 // SMB-Q6R Teach Pendant — entry point.
 //
-// Phase 1: Diagnostics demo. This file currently launches a minimal QML
-// window to exercise the cross-compile + deploy pipeline. The full
-// DiagnosticsModel + HwIo wiring is added incrementally.
+// Phase 1: Diagnostics demo. The HN00-09Q6 system Qt 5.12.8 only ships
+// qml-module-qtquick2; QtQuick.Window / Controls / Layouts QML modules are
+// absent. We therefore drive a QQuickView directly from C++ (which provides
+// its own QWindow) and write every UI primitive against bare QtQuick 2.
 
 #include <QGuiApplication>
-#include <QQmlApplicationEngine>
+#include <QQuickView>
 #include <QQmlContext>
-#include <QtQuickControls2/QQuickStyle>
+#include <QQmlError>
+#include <QSurfaceFormat>
 #include <QDebug>
 
 int main(int argc, char* argv[])
@@ -17,19 +19,23 @@ int main(int argc, char* argv[])
     QGuiApplication::setOrganizationName("smbq6r");
     QGuiApplication::setApplicationVersion("0.1.0");
 
-    // Quick Controls 2 style — "Basic" is the lightweight default.
-    QQuickStyle::setStyle("Basic");
-
     qInfo() << "SMB-Q6R" << QGuiApplication::applicationVersion()
-            << "starting on Qt" << qVersion();
+            << "on Qt" << qVersion()
+            << "/" << QGuiApplication::platformName();
 
-    QQmlApplicationEngine engine;
-    engine.load(QUrl("qrc:/qml/Main.qml"));
+    QQuickView view;
+    view.setTitle(QStringLiteral("SMB-Q6R Diagnostics"));
+    view.setResizeMode(QQuickView::SizeRootObjectToView);
+    view.resize(1280, 800);
+    view.setSource(QUrl(QStringLiteral("qrc:/qml/Main.qml")));
 
-    if (engine.rootObjects().isEmpty()) {
-        qCritical() << "Failed to load Main.qml";
+    if (view.status() == QQuickView::Error) {
+        for (const QQmlError& err : view.errors()) {
+            qCritical() << "QML error:" << err.toString();
+        }
         return -1;
     }
 
+    view.show();
     return app.exec();
 }
