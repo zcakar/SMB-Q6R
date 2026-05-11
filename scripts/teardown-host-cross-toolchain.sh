@@ -22,6 +22,7 @@ apt-get remove --purge -y \
     'crossbuild-essential-arm64' \
     'qtbase5-dev:arm64' \
     'qtdeclarative5-dev:arm64' \
+    'qtquickcontrols2-5-dev:arm64' \
     'qml-module-qtquick-controls2:arm64' \
     'qml-module-qtquick-window2:arm64' \
     'qml-module-qtquick-layouts:arm64' \

@@ -83,6 +83,7 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     qtbase5-dev:arm64 \
     qtbase5-dev-tools \
     qtdeclarative5-dev:arm64 \
+    qtquickcontrols2-5-dev:arm64 \
     qttools5-dev-tools \
     qml-module-qtquick-controls2:arm64 \
     qml-module-qtquick-window2:arm64 \

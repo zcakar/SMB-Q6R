@@ -1,10 +1,11 @@
 // Phase 1 smoke-test window. Will be replaced by the full 7-tab diagnostic
 // shell once the cross-compile pipeline is verified.
 
-import QtQuick 2.15
-import QtQuick.Window 2.15
-import QtQuick.Controls 2.15
-import QtQuick.Layouts 1.15
+// QML imports pinned to Qt 5.12 (device system Qt). Avoid 2.15-only API.
+import QtQuick 2.12
+import QtQuick.Window 2.12
+import QtQuick.Controls 2.5
+import QtQuick.Layouts 1.12
 
 ApplicationWindow {
     id: root
