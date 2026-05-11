@@ -45,16 +45,55 @@ re-implement against the same `/dev` API.
 
 ## 4. Build & Deploy Strategy
 
-**Native build on the device.**
+**Cross-compile from host (revised 2026-05-11 after device probe).**
 
-- Device has GCC 9.4, CMake 3.16+, Qt 5.15.10 dev headers (verify in Phase 1
-  task list — if dev headers missing, install via `sudo apt install qtbase5-dev qtdeclarative5-dev`).
-- Source tree lives on the host (`/home/embed/Dev/QT6/TeachPendant/SMB-Q6R/`).
-- Deploy via rsync to `/home/Tronlong/smb-q6r/` on the device.
-- A single host-side script (`scripts/sync-and-build.sh`) does:
-  rsync → ssh build → ssh launch with `DISPLAY=:0` and Qt env sourced.
+Original plan was native build on device, but device probe revealed:
+- No Qt dev headers (vendor's `/usr/lib/qt-5.15.10/` is runtime-only)
+- No `qmake`, no `cmake` on device
+- No internet path from device (default gateway is host)
 
-Cross-compile is deferred to Phase 2+ if build times become a friction point.
+Two device-local Qt runtimes exist: vendor **5.15.10** under
+`/usr/lib/qt-5.15.10/lib/`, and Ubuntu Focal **5.12.8** at standard system
+paths. Vendor's `lyx_appDemo` actually links against the system **5.12.8**
+copy, but **we will target the vendor 5.15.10 copy** by sourcing
+`/etc/profile.d/qt_env.sh` at launch — same convention the vendor's QML
+modules and qt5 plugins are configured for.
+
+### Toolchain on host (Ubuntu 24.04 Noble)
+
+```bash
+sudo dpkg --add-architecture arm64
+# Add arm64-only sources from ports.ubuntu.com (separate file)
+sudo apt update
+sudo apt install -y \
+    crossbuild-essential-arm64 \
+    qtbase5-dev:arm64 \
+    qtdeclarative5-dev:arm64 \
+    qml-module-qtquick-controls2:arm64 \
+    qml-module-qtquick-window2:arm64 \
+    qml-module-qtquick-layouts:arm64
+```
+
+Host's Qt is **5.15.13** (Noble) — same minor branch as device's vendor
+**5.15.10**, hence ABI-compatible. Build with 5.15.13 headers, link with
+runtime 5.15.10 on device.
+
+### CMake toolchain file
+
+`cmake/aarch64-linux-gnu.cmake` sets `CMAKE_C_COMPILER`,
+`CMAKE_CXX_COMPILER` to the cross binaries, `CMAKE_SYSROOT` to `/` (because
+multiarch puts arm64 libs in standard prefix), and `CMAKE_PREFIX_PATH` to
+arm64 Qt5.
+
+### Deploy
+
+- Build on host:
+  `cmake -B build-arm64 -DCMAKE_TOOLCHAIN_FILE=cmake/aarch64-linux-gnu.cmake -S . && cmake --build build-arm64 -j$(nproc)`
+- `scp build-arm64/smb_q6r Tronlong@192.168.1.245:/home/Tronlong/smb-q6r/`
+- Launch on device with `source /etc/profile.d/qt_env.sh && DISPLAY=:0 ./smb_q6r`.
+
+A single host-side script (`scripts/build-and-deploy.sh`) does cmake build
++ scp + remote launch.
 
 ## 5. Architecture
 
