@@ -30,16 +30,10 @@ int main(int argc, char* argv[])
     view.setResizeMode(QQuickView::SizeRootObjectToView);
     view.resize(1280, 800);
 
-    // Kiosk-style window: no title bar, no minimize/close, always on top.
-    // Prevents the operator from accidentally dragging the window off-screen
-    // or sending it behind other apps with no way back. To exit during
-    // development, kill via SSH:  killall smb_q6r
-    view.setFlags(Qt::Window
-                  | Qt::FramelessWindowHint
-                  | Qt::WindowStaysOnTopHint
-                  | Qt::CustomizeWindowHint);
-
-    view.rootContext()->setContextProperty(QStringLiteral("model"), &model);
+    // NOTE: do NOT name this context property "model" — that name is the
+    // delegate-scope reserved word inside Repeater/ListView, which would
+    // shadow ours and break every binding inside a delegate.
+    view.rootContext()->setContextProperty(QStringLiteral("diag"), &model);
     view.setSource(QUrl(QStringLiteral("qrc:/qml/Main.qml")));
 
     if (view.status() == QQuickView::Error) {
@@ -49,6 +43,12 @@ int main(int argc, char* argv[])
         return -1;
     }
 
+    // Fullscreen kiosk: just showFullScreen() — gives a borderless top
+    // window without invoking override-redirect (FramelessWindowHint on
+    // XFCE bypasses the WM and renders the window invisible behind the
+    // compositor). To exit during development:  killall smb_q6r over SSH.
     view.showFullScreen();
+    view.requestActivate();
+    view.raise();
     return app.exec();
 }

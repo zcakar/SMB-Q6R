@@ -79,11 +79,11 @@ Rectangle {
             spacing: 14
             Repeater {
                 model: [
-                    { name: "LED",   ok: model.ledReady       },
-                    { name: "SWT",   ok: model.switchReady    },
-                    { name: "BUZ",   ok: model.buzzerReady    },
-                    { name: "BL",    ok: model.backlightReady },
-                    { name: "KEYS",  ok: model.keysReady      }
+                    { name: "LED",   ok: diag.ledReady       },
+                    { name: "SWT",   ok: diag.switchReady    },
+                    { name: "BUZ",   ok: diag.buzzerReady    },
+                    { name: "BL",    ok: diag.backlightReady },
+                    { name: "KEYS",  ok: diag.keysReady      }
                 ]
                 Column {
                     spacing: 2
@@ -133,17 +133,17 @@ Rectangle {
 
                 ModePill {
                     name:  "AUTO"
-                    color: pal.green
+                    pillColor: pal.green
                     active: root.modeText.toUpperCase() === "AUTO"
                 }
                 ModePill {
                     name:  "MANUAL"
-                    color: pal.amber
+                    pillColor: pal.amber
                     active: root.modeText.toUpperCase() === "MANUAL"
                 }
                 ModePill {
                     name:  "STOP"
-                    color: pal.red
+                    pillColor: pal.red
                     active: root.modeText.toUpperCase() === "STOP"
                 }
             }
@@ -171,11 +171,11 @@ Rectangle {
                 anchors.centerIn: parent
                 spacing: 10
 
-                EnableStage { label: "RELEASED"; color: pal.muted
+                EnableStage { label: "RELEASED"; stageColor: pal.muted
                                active: !root.enS1 && !root.enS2 }
-                EnableStage { label: "ACTIVE";   color: pal.green
+                EnableStage { label: "ACTIVE";   stageColor: pal.green
                                active: root.enS1 && root.enS2 }
-                EnableStage { label: "PANIC";    color: pal.red
+                EnableStage { label: "PANIC";    stageColor: pal.red
                                active: (root.enS1 && !root.enS2) || (!root.enS1 && root.enS2) }
             }
             Row {
@@ -204,18 +204,18 @@ Rectangle {
                     model: [50, 200, 500, 1000]
                     PressButton {
                         label: modelData + " ms"
-                        color: pal.blue
+                        buttonColor: pal.blue
                         width: 76; height: 38
-                        onClicked: model.beep(modelData)
+                        onClicked: diag.beep(modelData)
                     }
                 }
                 PressButton {
                     label: root.buzzerHeld ? "HOLD ON" : "hold"
-                    color: root.buzzerHeld ? pal.red : "#3a4658"
+                    buttonColor: root.buzzerHeld ? pal.red : "#3a4658"
                     width: 90; height: 38
                     onClicked: {
                         root.buzzerHeld = !root.buzzerHeld
-                        model.holdBuzzer(root.buzzerHeld)
+                        diag.holdBuzzer(root.buzzerHeld)
                     }
                 }
             }
@@ -243,7 +243,7 @@ Rectangle {
                     Rectangle {
                         anchors.left: parent.left
                         anchors.top: parent.top; anchors.bottom: parent.bottom
-                        width: parent.width * root.blValue / Math.max(1, model.backlightMax)
+                        width: parent.width * root.blValue / Math.max(1, diag.backlightMax)
                         radius: 4
                         gradient: Gradient {
                             orientation: Gradient.Horizontal
@@ -256,7 +256,7 @@ Rectangle {
                         color: "#fffdf6"
                         border.color: pal.amber; border.width: 2
                         anchors.verticalCenter: parent.verticalCenter
-                        x: Math.max(0, parent.width * root.blValue / Math.max(1, model.backlightMax) - width / 2)
+                        x: Math.max(0, parent.width * root.blValue / Math.max(1, diag.backlightMax) - width / 2)
                     }
                     MouseArea {
                         anchors.fill: parent
@@ -264,9 +264,9 @@ Rectangle {
                         onPressed: setFromMouse(mouseX)
                         onPositionChanged: if (pressed) setFromMouse(mouseX)
                         function setFromMouse(mx) {
-                            var v = Math.max(5, Math.min(model.backlightMax,
-                                Math.round(mx / blTrack.width * model.backlightMax)))
-                            model.backlight = v
+                            var v = Math.max(5, Math.min(diag.backlightMax,
+                                Math.round(mx / blTrack.width * diag.backlightMax)))
+                            diag.backlight = v
                             root.blValue = v
                         }
                     }
@@ -289,26 +289,26 @@ Rectangle {
                 anchors.top: parent.top; anchors.topMargin: 38
                 height: 44
                 radius: 8
-                color: model.lastKeyPressed ? "#1a3f1a" : pal.panelHi
-                border.color: model.lastKeyPressed ? pal.green : pal.border
+                color: diag.lastKeyPressed ? "#1a3f1a" : pal.panelHi
+                border.color: diag.lastKeyPressed ? pal.green : pal.border
                 border.width: 1
 
                 Rectangle {
                     anchors.left: parent.left; anchors.leftMargin: 12
                     anchors.verticalCenter: parent.verticalCenter
                     width: 18; height: 18; radius: 9
-                    color: model.lastKeyPressed ? pal.green : pal.border
+                    color: diag.lastKeyPressed ? pal.green : pal.border
                 }
                 Text {
                     anchors.left: parent.left; anchors.leftMargin: 42
                     anchors.verticalCenter: parent.verticalCenter
-                    text: model.lastKeyCode === 0
+                    text: diag.lastKeyCode === 0
                         ? "Last key: (henüz tuş yok — bir tuşa basın)"
-                        : "Last: " + model.lastKeyName + "  code=" + model.lastKeyCode +
-                          "   " + (model.lastKeyPressed ? "▼ PRESSED" : "▲ released")
-                    font.pixelSize: 14; font.bold: model.lastKeyPressed
+                        : "Last: " + diag.lastKeyName + "  code=" + diag.lastKeyCode +
+                          "   " + (diag.lastKeyPressed ? "▼ PRESSED" : "▲ released")
+                    font.pixelSize: 14; font.bold: diag.lastKeyPressed
                     font.family: "monospace"
-                    color: model.lastKeyPressed ? pal.green : pal.text
+                    color: diag.lastKeyPressed ? pal.green : pal.text
                 }
             }
 
@@ -352,22 +352,22 @@ Rectangle {
                 LedTile {
                     label: "STOP";   sub: "port 0"; ledColor: pal.red
                     on: (root.ledShadow & 0x01) !== 0
-                    onToggleRequested: model.setLed(0, !on)
+                    onToggleRequested: diag.setLed(0, !on)
                 }
                 LedTile {
                     label: "SERVO";  sub: "port 1"; ledColor: pal.green
                     on: (root.ledShadow & 0x02) !== 0
-                    onToggleRequested: model.setLed(1, !on)
+                    onToggleRequested: diag.setLed(1, !on)
                 }
                 LedTile {
                     label: "ENABLE"; sub: "port 2"; ledColor: pal.green
                     on: (root.ledShadow & 0x04) !== 0
-                    onToggleRequested: model.setLed(2, !on)
+                    onToggleRequested: diag.setLed(2, !on)
                 }
                 LedTile {
                     label: "?";      sub: "port 3"; ledColor: pal.amber
                     on: (root.ledShadow & 0x08) !== 0
-                    onToggleRequested: model.setLed(3, !on)
+                    onToggleRequested: diag.setLed(3, !on)
                 }
 
                 Rectangle { // ALL OFF beside LEDs
@@ -380,7 +380,7 @@ Rectangle {
                         text: "ALL\nOFF"; horizontalAlignment: Text.AlignHCenter
                         font.pixelSize: 14; font.bold: true; color: pal.red
                     }
-                    MouseArea { id: aoMa; anchors.fill: parent; onClicked: model.allLedsOff() }
+                    MouseArea { id: aoMa; anchors.fill: parent; onClicked: diag.allLedsOff() }
                 }
             }
         }
@@ -413,22 +413,24 @@ Rectangle {
                             anchors.left: parent.left
                             width: parent.width / 2 - 4
                             height: parent.height
-                            cellIndex: rowN * 2          // top half of pair: "−"
+                            cellIndex: rowN * 2          // left half of pair: "−"
                             sign: "−"
                             rowLabel: "row " + (rowN + 1)
                             code: root.keyMap[cellIndex] !== undefined ? root.keyMap[cellIndex] : -1
-                            justPressed: code >= 0 && model.lastKeyPressed && model.lastKeyCode === code
+                            justPressed: code >= 0 && diag.lastKeyPressed && diag.lastKeyCode === code
+                            selected: root.selectedCell === cellIndex
                             onTapped: root.tapCell(cellIndex)
                         }
                         KeyCell {
                             anchors.right: parent.right
                             width: parent.width / 2 - 4
                             height: parent.height
-                            cellIndex: rowN * 2 + 1      // bottom half: "+"
+                            cellIndex: rowN * 2 + 1      // right half: "+"
                             sign: "+"
                             rowLabel: "row " + (rowN + 1)
                             code: root.keyMap[cellIndex] !== undefined ? root.keyMap[cellIndex] : -1
-                            justPressed: code >= 0 && model.lastKeyPressed && model.lastKeyCode === code
+                            justPressed: code >= 0 && diag.lastKeyPressed && diag.lastKeyCode === code
+                            selected: root.selectedCell === cellIndex
                             onTapped: root.tapCell(cellIndex)
                         }
                     }
@@ -508,21 +510,21 @@ Rectangle {
     }
 
     Connections {
-        target: model
-        onLedChanged:        root.ledShadow = model.ledMask
+        target: diag
+        onLedChanged:        root.ledShadow = diag.ledMask
         onSwitchChanged: {
-            root.modeText       = model.mode
-            root.modeByteText   = model.modeByte
-            root.enS1           = model.enableS1
-            root.enS2           = model.enableS2
-            root.enableByteText = model.enableByte
+            root.modeText       = diag.mode
+            root.modeByteText   = diag.modeByte
+            root.enS1           = diag.enableS1
+            root.enS2           = diag.enableS2
+            root.enableByteText = diag.enableByte
         }
-        onBacklightChanged:  root.blValue = model.backlight
+        onBacklightChanged:  root.blValue = diag.backlight
         onKeyEvent: {
             // Auto-learn: on a fresh (un-mapped) press, assign the code to
             // the next empty cell (lowest index where keyMap[i] === -1).
-            if (model.lastKeyPressed) {
-                var code = model.lastKeyCode
+            if (diag.lastKeyPressed) {
+                var code = diag.lastKeyCode
                 var copy = root.keyMap.slice()
                 var alreadyMapped = false
                 for (var i = 0; i < copy.length; i++) {
@@ -538,209 +540,19 @@ Rectangle {
                     }
                 }
             }
-            root.keyHistArr = model.keyHistory
+            root.keyHistArr = diag.keyHistory
         }
     }
 
     Component.onCompleted: {
-        root.ledShadow      = model.ledMask
-        root.modeText       = model.mode
-        root.modeByteText   = model.modeByte
-        root.enS1           = model.enableS1
-        root.enS2           = model.enableS2
-        root.enableByteText = model.enableByte
-        root.blValue        = model.backlight
-        root.keyHistArr     = model.keyHistory
+        root.ledShadow      = diag.ledMask
+        root.modeText       = diag.mode
+        root.modeByteText   = diag.modeByte
+        root.enS1           = diag.enableS1
+        root.enS2           = diag.enableS2
+        root.enableByteText = diag.enableByte
+        root.blValue        = diag.backlight
+        root.keyHistArr     = diag.keyHistory
     }
 
-    // ── Card component (panel with gradient + title strip) ─────────
-    component Card : Item {
-        property string title: ""
-        Rectangle {
-            anchors.fill: parent
-            radius: 12
-            gradient: Gradient {
-                orientation: Gradient.Vertical
-                GradientStop { position: 0.0; color: "#1f2a42" }
-                GradientStop { position: 1.0; color: "#121828" }
-            }
-            border.color: pal.border; border.width: 1
-        }
-        Rectangle { // title strip
-            anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
-            anchors.margins: 1
-            height: 28
-            radius: 12
-            color: "#1c2942"
-            Rectangle { // hide bottom-rounded corners
-                anchors.left: parent.left; anchors.right: parent.right
-                anchors.bottom: parent.bottom; height: parent.height / 2
-                color: "#1c2942"
-            }
-        }
-        Text {
-            text: parent.title
-            anchors.top: parent.top; anchors.topMargin: 6
-            anchors.left: parent.left; anchors.leftMargin: 14
-            font.pixelSize: 12; font.bold: true; color: pal.muted
-            font.letterSpacing: 1.0
-        }
-    }
-
-    // ── ModePill component ─────────────────────────────────────────
-    component ModePill : Item {
-        property string name: ""
-        property color  color: pal.green
-        property bool   active: false
-        width: 240; height: 50
-        Rectangle {
-            anchors.fill: parent
-            radius: 25
-            gradient: Gradient {
-                orientation: Gradient.Vertical
-                GradientStop { position: 0.0; color: parent.parent.active
-                    ? Qt.lighter(parent.parent.color, 1.05) : "#1f2a42" }
-                GradientStop { position: 1.0; color: parent.parent.active
-                    ? Qt.darker(parent.parent.color, 1.3) : "#121828" }
-            }
-            border.color: parent.parent.active
-                ? Qt.lighter(parent.parent.color, 1.4) : pal.border
-            border.width: parent.parent.active ? 2 : 1
-        }
-        Rectangle { // glow when active
-            visible: parent.active
-            anchors.fill: parent
-            anchors.margins: -3
-            radius: 28
-            color: "transparent"
-            border.color: parent.color; border.width: 2
-            opacity: 0.35
-        }
-        Rectangle { // inner dot
-            anchors.left: parent.left; anchors.leftMargin: 14
-            anchors.verticalCenter: parent.verticalCenter
-            width: 18; height: 18; radius: 9
-            color: parent.parent.active ? "white" : pal.border
-        }
-        Text {
-            anchors.centerIn: parent
-            anchors.horizontalCenterOffset: 12
-            text: parent.name
-            font.pixelSize: 22; font.bold: true; font.letterSpacing: 2.0
-            color: parent.parent.active ? "white" : pal.muted
-        }
-    }
-
-    // ── EnableStage component ──────────────────────────────────────
-    component EnableStage : Item {
-        property string label: ""
-        property color  color: pal.green
-        property bool   active: false
-        width: 240; height: 50
-        Rectangle {
-            anchors.fill: parent
-            radius: 8
-            gradient: Gradient {
-                orientation: Gradient.Vertical
-                GradientStop { position: 0.0; color: parent.parent.active
-                    ? Qt.lighter(parent.parent.color, 1.2) : "#1f2a42" }
-                GradientStop { position: 1.0; color: parent.parent.active
-                    ? Qt.darker(parent.parent.color, 1.4) : "#121828" }
-            }
-            border.color: parent.parent.active
-                ? Qt.lighter(parent.parent.color, 1.4) : pal.border
-            border.width: parent.parent.active ? 2 : 1
-        }
-        Text {
-            anchors.centerIn: parent
-            text: parent.label
-            font.pixelSize: 18; font.bold: true; font.letterSpacing: 2.0
-            color: parent.parent.active ? "#001020" : pal.muted
-        }
-    }
-
-    // ── Press button ──────────────────────────────────────────────
-    component PressButton : Rectangle {
-        property string label: ""
-        property color  color: pal.blue
-        signal clicked()
-
-        radius: 8
-        gradient: Gradient {
-            orientation: Gradient.Vertical
-            GradientStop { position: 0.0; color: btnMa.pressed ? Qt.darker(parent.parent.color, 1.4) : Qt.lighter(parent.parent.color, 1.15) }
-            GradientStop { position: 1.0; color: btnMa.pressed ? Qt.darker(parent.parent.color, 1.7) : Qt.darker(parent.parent.color, 1.2) }
-        }
-        border.color: Qt.darker(parent.parent.color, 1.6); border.width: 1
-        Text {
-            anchors.centerIn: parent
-            text: parent.label
-            font.pixelSize: 13; font.bold: true; color: "white"
-        }
-        MouseArea {
-            id: btnMa; anchors.fill: parent
-            onClicked: parent.parent.clicked()
-        }
-    }
-
-    // ── KeyCell ──────────────────────────────────────────────────
-    component KeyCell : Item {
-        property int    cellIndex: 0
-        property string sign:      "−"
-        property string rowLabel:  ""
-        property int    code:      -1
-        property bool   justPressed: false
-        signal tapped()
-
-        Rectangle {
-            anchors.fill: parent
-            radius: 10
-            border.color: root.selectedCell === parent.parent.cellIndex ? pal.amber :
-                           parent.parent.justPressed ? pal.green :
-                           parent.parent.code >= 0 ? pal.border : "#243047"
-            border.width: root.selectedCell === parent.parent.cellIndex ? 3
-                          : parent.parent.justPressed ? 3 : 1
-            gradient: Gradient {
-                orientation: Gradient.Vertical
-                GradientStop {
-                    position: 0.0
-                    color: root.selectedCell === parent.parent.parent.cellIndex ? "#3a2f00" :
-                           parent.parent.parent.justPressed ? "#1f5f1f" :
-                           parent.parent.parent.code >= 0 ? "#27314a" : "#1a2336"
-                }
-                GradientStop {
-                    position: 1.0
-                    color: root.selectedCell === parent.parent.parent.cellIndex ? "#1a1700" :
-                           parent.parent.parent.justPressed ? "#0c3a0c" :
-                           parent.parent.parent.code >= 0 ? "#1a2236" : "#0e1626"
-                }
-            }
-        }
-        Text {
-            anchors.horizontalCenter: parent.horizontalCenter
-            anchors.top: parent.top; anchors.topMargin: 4
-            text: parent.rowLabel
-            font.pixelSize: 9; color: pal.muted
-        }
-        Text {
-            anchors.centerIn: parent
-            text: parent.sign
-            font.pixelSize: parent.height > 70 ? 42 : 32
-            font.bold: true
-            color: root.selectedCell === parent.cellIndex ? pal.amber :
-                   parent.justPressed ? pal.green :
-                   parent.code >= 0 ? pal.text : pal.muted
-        }
-        Text {
-            anchors.horizontalCenter: parent.horizontalCenter
-            anchors.bottom: parent.bottom; anchors.bottomMargin: 4
-            text: parent.code >= 0 ? ("code " + parent.code) : "—"
-            font.pixelSize: 10; font.family: "monospace"
-            color: parent.justPressed ? pal.green : pal.muted
-        }
-        MouseArea {
-            anchors.fill: parent
-            onClicked: parent.tapped()
-        }
-    }
 }

@@ -2,5 +2,10 @@
     <qresource prefix="/qml">
         <file>Main.qml</file>
         <file>LedTile.qml</file>
+        <file>Card.qml</file>
+        <file>ModePill.qml</file>
+        <file>EnableStage.qml</file>
+        <file>PressButton.qml</file>
+        <file>KeyCell.qml</file>
     </qresource>
 </RCC>
