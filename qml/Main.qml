@@ -343,7 +343,7 @@ Rectangle {
         Card {
             id: ledCard
             x: 0; y: 0
-            width: parent.width; height: 130
+            width: parent.width; height: 150
             title: "INDICATOR LEDs"
 
             Row {
@@ -352,29 +352,30 @@ Rectangle {
                 anchors.horizontalCenter: parent.horizontalCenter
                 spacing: 10
 
-                // HN00-09Q6 LED port → physical LED (confirmed via test 2026-05-12):
-                //   port 2 → STOP (red).   Other ports (0, 1, 3) not yet identified.
+                // HN00-09Q6 LED port → physical LED (confirmed test 2026-05-12):
+                //   port 2 → STOP (red).  Ports 0, 1, 3 not yet identified —
+                //   labelled LED 1 / 2 / 4 in screen order with port tags.
                 LedTile {
                     width: 130; height: parent.height
-                    label: "?";    sub: "port 0"; ledColor: pal.textMuted
+                    label: "LED 1"; sub: "port 0"; ledColor: pal.accent
                     on: (root.ledShadow & 0x01) !== 0
                     onToggleRequested: diag.setLed(0, !on)
                 }
                 LedTile {
                     width: 130; height: parent.height
-                    label: "?";    sub: "port 1"; ledColor: pal.textMuted
+                    label: "LED 2"; sub: "port 1"; ledColor: pal.accent
                     on: (root.ledShadow & 0x02) !== 0
                     onToggleRequested: diag.setLed(1, !on)
                 }
                 LedTile {
                     width: 130; height: parent.height
-                    label: "STOP"; sub: "port 2"; ledColor: pal.danger
+                    label: "STOP";  sub: "port 2"; ledColor: pal.danger
                     on: (root.ledShadow & 0x04) !== 0
                     onToggleRequested: diag.setLed(2, !on)
                 }
                 LedTile {
                     width: 130; height: parent.height
-                    label: "?";    sub: "port 3"; ledColor: pal.textMuted
+                    label: "LED 4"; sub: "port 3"; ledColor: pal.accent
                     on: (root.ledShadow & 0x08) !== 0
                     onToggleRequested: diag.setLed(3, !on)
                 }
