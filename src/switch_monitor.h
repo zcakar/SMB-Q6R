@@ -4,6 +4,7 @@
 
 QT_BEGIN_NAMESPACE
 class QSocketNotifier;
+class QTimer;
 QT_END_NAMESPACE
 
 namespace smbq6r {
@@ -52,6 +53,7 @@ private:
     int buttonstopFd_ = -1;
     QSocketNotifier* buttonsNotifier_ = nullptr;
     QSocketNotifier* buttonstopNotifier_ = nullptr;
+    QTimer* primeTimer_ = nullptr;  // briefly polls at startup until first frame
 
     Mode mode_ = Mode::None;
     bool s1_ = false;

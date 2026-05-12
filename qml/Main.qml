@@ -1,16 +1,13 @@
-// Phase 1 Diagnostics — visual pendant mirror.
+// SMB-Q6R Teach Pendant Hardware Mapping
 //
-// Layout mirrors the HN00-09Q6 physical pendant:
-//   * Three named indicator LEDs (STOP / SERVO / ENABLE) — touch to toggle
-//   * Mode switch rotary visual (Auto / Manual / Stop)
-//   * Enable switch (S1 / S2) live indicator with derived state label
-//   * 14-cell key matrix (7 cols × 2 rows: top "-" / bottom "+")
-//     User assigns each physical button to a cell by tapping the cell
-//     then pressing the button — code recorded in place.
-//   * Buzzer + backlight controls
-//   * Live "last key" readout + scrollable history footer
+// Visual mirror of the HN00-09Q6 (device code MAT-QT-TP-PC10C-Q6-UBT-L1)
+// physical layout: LEDs and keypad live on the right (matching where the
+// operator's right hand falls); mode switch, enable switch and ancillary
+// controls live on the left.
 //
-// Pure QtQuick 2.12; no Controls / Layouts / Window modules required.
+// Auto-learn matrix-key mapping: press any physical button and its key
+// code is recorded into the next empty cell automatically; subsequent
+// presses just highlight the already-mapped cell.
 
 import QtQuick 2.12
 
@@ -18,475 +15,464 @@ Rectangle {
     id: root
     width: 1280
     height: 800
-    color: theme.bg
 
-    // ---------- Theme ----------
-    QtObject {
-        id: theme
-        readonly property color bg:        "#0a0f1c"
-        readonly property color panel:     "#172033"
-        readonly property color panelHi:   "#1f2a42"
-        readonly property color border:    "#2c3a55"
-        readonly property color text:      "#E8EEF7"
-        readonly property color textMuted: "#8a99b3"
-        readonly property color accent:    "#7CFC00"
-        readonly property color amber:     "#FFD700"
-        readonly property color red:       "#ff4d4d"
-        readonly property color green:     "#4dff77"
-        readonly property color blue:      "#3DA9FC"
+    gradient: Gradient {
+        GradientStop { position: 0.0; color: "#0a1126" }
+        GradientStop { position: 1.0; color: "#050813" }
     }
 
-    // ---------- Header (40 px) ----------
+    QtObject {
+        id: pal
+        readonly property color panel:    "#172033"
+        readonly property color panelHi:  "#1f2a42"
+        readonly property color border:   "#2c3a55"
+        readonly property color text:     "#E8EEF7"
+        readonly property color muted:    "#7e8ba6"
+        readonly property color accent:   "#7CFC00"
+        readonly property color amber:    "#FFD700"
+        readonly property color red:      "#ff4d4d"
+        readonly property color green:    "#4dff77"
+        readonly property color blue:     "#3DA9FC"
+        readonly property color violet:   "#9D6BFF"
+    }
+
+    // ─── Header ──────────────────────────────────────────────────────
     Rectangle {
         id: header
         anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
-        height: 40
-        color: theme.panel
-
-        Text {
-            anchors.left: parent.left; anchors.leftMargin: 16
-            anchors.verticalCenter: parent.verticalCenter
-            text: "SMB-Q6R  ·  Hardware Mirror"
-            font.pixelSize: 18; font.bold: true; color: theme.accent
+        height: 56
+        gradient: Gradient {
+            orientation: Gradient.Vertical
+            GradientStop { position: 0.0; color: "#1c2942" }
+            GradientStop { position: 1.0; color: "#0d1424" }
         }
-        Text {
-            anchors.right: parent.right; anchors.rightMargin: 16
-            anchors.verticalCenter: parent.verticalCenter
-            text:  "led=" + (model.ledReady?"●":"○") +
-                   "  sw="  + (model.switchReady?"●":"○") +
-                   "  buz=" + (model.buzzerReady?"●":"○") +
-                   "  bl="  + (model.backlightReady?"●":"○") +
-                   "  kbd=" + (model.keysReady?"●":"○")
-            font.pixelSize: 12; font.family: "monospace"; color: theme.textMuted
+
+        Rectangle { // bottom accent line
+            anchors.left: parent.left; anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            height: 2
+            gradient: Gradient {
+                orientation: Gradient.Horizontal
+                GradientStop { position: 0.0; color: pal.accent }
+                GradientStop { position: 1.0; color: pal.violet }
+            }
         }
-    }
 
-    // ---------- Row 1: LEDs + Mode + Enable (160 px) ----------
-    Item {
-        id: row1
-        anchors.left: parent.left; anchors.right: parent.right
-        anchors.top: header.bottom; anchors.topMargin: 10
-        height: 160
+        Column {
+            anchors.left: parent.left; anchors.leftMargin: 18
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: 2
+            Text {
+                text: "SMB-Q6R Teach Pendant Hardware Mapping"
+                font.pixelSize: 20; font.bold: true; color: pal.accent
+            }
+            Text {
+                text: "Device: MAT-QT-TP-PC10C-Q6-UBT-L1"
+                font.pixelSize: 11; font.family: "monospace"; color: pal.muted
+            }
+        }
 
-        // --- 4 LED tiles in a row ---
+        // Status indicators (top-right)
         Row {
-            id: ledRow
-            anchors.left: parent.left; anchors.leftMargin: 16
+            anchors.right: parent.right; anchors.rightMargin: 18
             anchors.verticalCenter: parent.verticalCenter
-            spacing: 12
-
-            // Three named LEDs (STOP / SERVO / ENABLE) — assumed mapping
-            // (left-to-right per HN00-09Q6 datasheet §2.1.1). Spare port 3
-            // shown separately in case the assumption is wrong.
-            LedTile { label: "STOP";   sub: "port 0"; ledPort: 0; ledColor: theme.red
-                       on: (root.ledShadow & 0x01) !== 0
-                       onToggleRequested: model.setLed(0, !on) }
-            LedTile { label: "SERVO";  sub: "port 1"; ledPort: 1; ledColor: theme.green
-                       on: (root.ledShadow & 0x02) !== 0
-                       onToggleRequested: model.setLed(1, !on) }
-            LedTile { label: "ENABLE"; sub: "port 2"; ledPort: 2; ledColor: theme.green
-                       on: (root.ledShadow & 0x04) !== 0
-                       onToggleRequested: model.setLed(2, !on) }
-            LedTile { label: "?";      sub: "port 3"; ledPort: 3; ledColor: theme.amber
-                       on: (root.ledShadow & 0x08) !== 0
-                       onToggleRequested: model.setLed(3, !on) }
-
-            // ALL OFF button column
-            Item {
-                width: 110; height: ledRow.height
-                Rectangle {
-                    anchors.centerIn: parent
-                    width: 100; height: 38; radius: 6
-                    color: allOffMa.pressed ? "#A52525" : "#C03030"
-                    Text { anchors.centerIn: parent; text: "ALL OFF"; color: "white"; font.bold: true; font.pixelSize: 13 }
-                    MouseArea { id: allOffMa; anchors.fill: parent; onClicked: model.allLedsOff() }
+            spacing: 14
+            Repeater {
+                model: [
+                    { name: "LED",   ok: model.ledReady       },
+                    { name: "SWT",   ok: model.switchReady    },
+                    { name: "BUZ",   ok: model.buzzerReady    },
+                    { name: "BL",    ok: model.backlightReady },
+                    { name: "KEYS",  ok: model.keysReady      }
+                ]
+                Column {
+                    spacing: 2
+                    Rectangle {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        width: 12; height: 12; radius: 6
+                        color: modelData.ok ? pal.green : pal.muted
+                        Rectangle { // outer glow when ok
+                            visible: modelData.ok
+                            anchors.centerIn: parent
+                            width: 22; height: 22; radius: 11
+                            color: "transparent"
+                            border.color: pal.green; border.width: 1
+                            opacity: 0.4
+                        }
+                    }
+                    Text {
+                        text: modelData.name; font.pixelSize: 9
+                        color: modelData.ok ? pal.green : pal.muted
+                    }
                 }
             }
         }
+    }
 
-        // --- Mode Switch panel ---
-        Rectangle {
-            id: modeBox
-            anchors.left: ledRow.right; anchors.leftMargin: 20
-            anchors.top: parent.top; anchors.bottom: parent.bottom
-            width: 220
-            radius: 10; color: theme.panel; border.color: theme.border; border.width: 1
+    // ─── LEFT PANEL ─────────────────────────────────────────────────
+    Item {
+        id: leftPanel
+        anchors.left: parent.left; anchors.leftMargin: 14
+        anchors.top: header.bottom; anchors.topMargin: 12
+        width: 720
+        anchors.bottom: parent.bottom; anchors.bottomMargin: 14
 
-            Text {
+        // — Mode Switch panel (top-left) —
+        Card {
+            id: modeCard
+            anchors.left: parent.left
+            anchors.top: parent.top
+            width: parent.width / 2 - 8
+            height: 270
+            title: "MODE SWITCH"
+
+            Column {
+                anchors.top: parent.top; anchors.topMargin: 50
                 anchors.horizontalCenter: parent.horizontalCenter
-                anchors.top: parent.top; anchors.topMargin: 10
-                text: "MODE SWITCH"
-                font.pixelSize: 12; font.bold: true; color: theme.textMuted
+                spacing: 12
+
+                ModePill {
+                    name:  "AUTO"
+                    color: pal.green
+                    active: root.modeText.toUpperCase() === "AUTO"
+                }
+                ModePill {
+                    name:  "MANUAL"
+                    color: pal.amber
+                    active: root.modeText.toUpperCase() === "MANUAL"
+                }
+                ModePill {
+                    name:  "STOP"
+                    color: pal.red
+                    active: root.modeText.toUpperCase() === "STOP"
+                }
             }
+            Text {
+                anchors.bottom: parent.bottom; anchors.bottomMargin: 10
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: root.modeText === "—"
+                    ? "(anahtarı oynatın — algılama bekleniyor)"
+                    : "raw byte: " + root.modeByteText
+                font.pixelSize: 11; font.family: "monospace"
+                color: root.modeText === "—" ? pal.amber : pal.muted
+            }
+        }
+
+        // — Enable Switch panel —
+        Card {
+            id: enableCard
+            anchors.right: parent.right
+            anchors.top: parent.top
+            width: parent.width / 2 - 8
+            height: 270
+            title: "ENABLE SWITCH  (tutamak)"
+
             Column {
                 anchors.centerIn: parent
+                spacing: 10
+
+                EnableStage { label: "RELEASED"; color: pal.muted
+                               active: !root.enS1 && !root.enS2 }
+                EnableStage { label: "ACTIVE";   color: pal.green
+                               active: root.enS1 && root.enS2 }
+                EnableStage { label: "PANIC";    color: pal.red
+                               active: (root.enS1 && !root.enS2) || (!root.enS1 && root.enS2) }
+            }
+            Row {
+                anchors.bottom: parent.bottom; anchors.bottomMargin: 10
+                anchors.horizontalCenter: parent.horizontalCenter
+                spacing: 18
+                Text { text: "S1:" + (root.enS1?"1":"0"); font.pixelSize: 11; color: root.enS1?pal.amber:pal.muted; font.family: "monospace" }
+                Text { text: "S2:" + (root.enS2?"1":"0"); font.pixelSize: 11; color: root.enS2?pal.amber:pal.muted; font.family: "monospace" }
+                Text { text: "raw: " + root.enableByteText; font.pixelSize: 11; color: pal.muted; font.family: "monospace" }
+            }
+        }
+
+        // — Buzzer + Backlight —
+        Card {
+            id: bbCard
+            anchors.left: parent.left; anchors.right: parent.right
+            anchors.top: modeCard.bottom; anchors.topMargin: 12
+            height: 130
+            title: "BUZZER  ·  BACKLIGHT"
+
+            Row {
+                anchors.top: parent.top; anchors.topMargin: 44
+                anchors.left: parent.left; anchors.leftMargin: 20
                 spacing: 8
                 Repeater {
-                    model: [
-                        { name: "AUTO",   color: theme.green },
-                        { name: "MANUAL", color: theme.amber },
-                        { name: "STOP",   color: theme.red }
-                    ]
-                    Row {
-                        spacing: 12
-                        Rectangle {
-                            width: 22; height: 22; radius: 11
-                            color: root.modeText.toUpperCase() === modelData.name
-                                   ? modelData.color : theme.border
-                            border.color: root.modeText.toUpperCase() === modelData.name
-                                          ? Qt.lighter(modelData.color, 1.3) : theme.border
-                            border.width: 2
-                        }
-                        Text {
-                            text: modelData.name; font.pixelSize: 20; font.bold: true
-                            anchors.verticalCenter: parent.verticalCenter
-                            color: root.modeText.toUpperCase() === modelData.name
-                                   ? modelData.color : theme.textMuted
-                        }
+                    model: [50, 200, 500, 1000]
+                    PressButton {
+                        label: modelData + " ms"
+                        color: pal.blue
+                        width: 76; height: 38
+                        onClicked: model.beep(modelData)
                     }
                 }
-            }
-            Text {
-                anchors.horizontalCenter: parent.horizontalCenter
-                anchors.bottom: parent.bottom; anchors.bottomMargin: 6
-                text: "raw: " + root.modeByteText
-                font.pixelSize: 11; font.family: "monospace"; color: theme.textMuted
-            }
-        }
-
-        // --- Enable Switch panel ---
-        Rectangle {
-            id: enableBox
-            anchors.left: modeBox.right; anchors.leftMargin: 16
-            anchors.right: parent.right; anchors.rightMargin: 16
-            anchors.top: parent.top; anchors.bottom: parent.bottom
-            radius: 10; color: theme.panel; border.color: theme.border; border.width: 1
-
-            Text {
-                anchors.horizontalCenter: parent.horizontalCenter
-                anchors.top: parent.top; anchors.topMargin: 10
-                text: "ENABLE SWITCH  (tutamak arkası)"
-                font.pixelSize: 12; font.bold: true; color: theme.textMuted
-            }
-
-            // Derived 3-state visual
-            Item {
-                anchors.horizontalCenter: parent.horizontalCenter
-                anchors.top: parent.top; anchors.topMargin: 40
-                width: 320; height: 60
-
-                property string state:
-                    root.enS1 && root.enS2 ? "ACTIVE" :
-                    (!root.enS1 && !root.enS2 ? "RELEASED" : "PANIC")
-                property color stateColor:
-                    state === "ACTIVE"   ? theme.green :
-                    state === "RELEASED" ? theme.textMuted :
-                                           theme.red
-
-                Row {
-                    anchors.centerIn: parent
-                    spacing: 14
-                    Repeater {
-                        model: [
-                            { label: "RELEASED", color: theme.textMuted },
-                            { label: "ACTIVE",   color: theme.green },
-                            { label: "PANIC",    color: theme.red }
-                        ]
-                        Rectangle {
-                            width: 100; height: 50; radius: 6
-                            color: parent.parent.parent.state === modelData.label
-                                   ? modelData.color : theme.panelHi
-                            border.color: parent.parent.parent.state === modelData.label
-                                          ? Qt.lighter(modelData.color, 1.3) : theme.border
-                            border.width: 2
-                            Text {
-                                anchors.centerIn: parent
-                                text: modelData.label
-                                font.pixelSize: 14; font.bold: true
-                                color: parent.parent.parent.parent.state === modelData.label
-                                       ? "#001020" : theme.textMuted
-                            }
-                        }
-                    }
-                }
-            }
-
-            // S1 / S2 indicators + raw byte
-            Row {
-                anchors.horizontalCenter: parent.horizontalCenter
-                anchors.bottom: parent.bottom; anchors.bottomMargin: 6
-                spacing: 24
-                Text {
-                    text: "S1: " + (root.enS1 ? "1" : "0")
-                    font.pixelSize: 12; color: root.enS1 ? theme.amber : theme.textMuted
-                }
-                Text {
-                    text: "S2: " + (root.enS2 ? "1" : "0")
-                    font.pixelSize: 12; color: root.enS2 ? theme.amber : theme.textMuted
-                }
-                Text {
-                    text: "raw: " + root.enableByteText
-                    font.pixelSize: 12; font.family: "monospace"; color: theme.textMuted
-                }
-            }
-        }
-    }
-
-    // ---------- Row 2: 14-cell key matrix (280 px) ----------
-    Item {
-        id: row2
-        anchors.left: parent.left; anchors.right: parent.right
-        anchors.top: row1.bottom; anchors.topMargin: 10
-        height: 280
-
-        Text {
-            id: kbTitle
-            anchors.left: parent.left; anchors.leftMargin: 16
-            anchors.top: parent.top
-            text: "Matrix Keys  ·  cell'e dokun + fiziksel butona bas = haritalama"
-            font.pixelSize: 13; color: theme.textMuted
-        }
-        Text {
-            anchors.right: parent.right; anchors.rightMargin: 16
-            anchors.top: parent.top
-            text: "Last: " + (model.lastKeyCode === 0
-                              ? "(yok)"
-                              : model.lastKeyName + "  code=" + model.lastKeyCode +
-                                "  " + (model.lastKeyPressed ? "▼ PRESSED" : "▲ released"))
-            font.pixelSize: 13; font.family: "monospace"
-            color: model.lastKeyPressed ? theme.accent : theme.textMuted
-        }
-
-        // 7-column × 2-row grid (top row = "-" jog, bottom = "+" jog per pendant photo)
-        Grid {
-            id: kbGrid
-            anchors.left: parent.left; anchors.leftMargin: 16
-            anchors.right: parent.right; anchors.rightMargin: 16
-            anchors.top: kbTitle.bottom; anchors.topMargin: 8
-            columns: 7
-            rows: 2
-            spacing: 6
-            property int cellW: (width - spacing * (columns - 1)) / columns
-            property int cellH: 110
-
-            Repeater {
-                model: 14
-                Rectangle {
-                    width: kbGrid.cellW; height: kbGrid.cellH
-                    radius: 8
-                    property int cellIndex: index
-                    property int colN: index % 7
-                    property int rowN: Math.floor(index / 7)
-                    property string sign: rowN === 0 ? "−" : "+"
-                    property int  code: root.keyMap[cellIndex] || -1
-                    property bool selected: root.selectedCell === cellIndex
-                    property bool justPressed:
-                        code >= 0 && model.lastKeyPressed && model.lastKeyCode === code
-
-                    color: selected     ? "#5e4a00" :
-                           justPressed  ? "#1a5f1a" :
-                           code >= 0    ? theme.panelHi : theme.panel
-                    border.color:
-                        selected     ? theme.amber :
-                        justPressed  ? theme.green :
-                        code >= 0    ? theme.border : "#2a3548"
-                    border.width: selected ? 3 : 1
-
-                    Text {
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        anchors.top: parent.top; anchors.topMargin: 4
-                        text: "col " + (parent.colN + 1)
-                        font.pixelSize: 10; color: theme.textMuted
-                    }
-                    Text {
-                        anchors.centerIn: parent
-                        anchors.verticalCenterOffset: -8
-                        text: parent.sign
-                        font.pixelSize: 42; font.bold: true
-                        color: parent.selected   ? theme.amber :
-                               parent.justPressed? theme.green :
-                               parent.code >= 0  ? theme.text :
-                                                   theme.textMuted
-                    }
-                    Text {
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        anchors.bottom: parent.bottom; anchors.bottomMargin: 4
-                        text: parent.code >= 0 ? "code " + parent.code : "—"
-                        font.pixelSize: 11; font.family: "monospace"
-                        color: parent.justPressed ? theme.green : theme.textMuted
-                    }
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: {
-                            // Toggle selection: tap a cell, then press the
-                            // physical button you want to assign here.
-                            if (root.selectedCell === cellIndex) {
-                                root.selectedCell = -1
-                            } else {
-                                root.selectedCell = cellIndex
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Reset map button (subtle)
-        Rectangle {
-            anchors.bottom: parent.bottom
-            anchors.right: parent.right; anchors.rightMargin: 16
-            width: 100; height: 24; radius: 4
-            color: resetMa.pressed ? "#3a2020" : "#2a1818"
-            border.color: theme.border; border.width: 1
-            Text { anchors.centerIn: parent; text: "reset map"; font.pixelSize: 11; color: theme.textMuted }
-            MouseArea {
-                id: resetMa
-                anchors.fill: parent
-                onClicked: {
-                    var fresh = []
-                    for (var i = 0; i < 14; i++) fresh.push(-1)
-                    root.keyMap = fresh
-                    root.selectedCell = -1
-                }
-            }
-        }
-    }
-
-    // ---------- Row 3: Buzzer + Backlight (78 px) ----------
-    Item {
-        id: row3
-        anchors.left: parent.left; anchors.right: parent.right
-        anchors.top: row2.bottom; anchors.topMargin: 8
-        height: 78
-
-        Rectangle {
-            anchors.fill: parent
-            anchors.leftMargin: 16; anchors.rightMargin: 16
-            radius: 8; color: theme.panel; border.color: theme.border; border.width: 1
-        }
-
-        // Buzzer (left). Driver has no volume control — timed beep can sound
-        // faint; HOLD usually drives the PWM continuously and is louder.
-        Row {
-            anchors.left: parent.left; anchors.leftMargin: 24
-            anchors.verticalCenter: parent.verticalCenter
-            spacing: 8
-            Text {
-                text: "Buzzer"; font.pixelSize: 13; color: theme.textMuted
-                anchors.verticalCenter: parent.verticalCenter
-            }
-            Repeater {
-                model: [50, 200, 500, 1000]
-                Rectangle {
-                    width: 60; height: 36; radius: 6
-                    color: ma.pressed ? "#0D47A1" : theme.blue
-                    Text { anchors.centerIn: parent; text: modelData + "ms"; color: "white"; font.pixelSize: 11 }
-                    MouseArea { id: ma; anchors.fill: parent; onClicked: model.beep(modelData) }
-                }
-            }
-            // Hold toggle — continuous tone, typically louder than timed beep
-            Rectangle {
-                width: 100; height: 36; radius: 6
-                color: root.buzzerHeld ? "#A52525" : "#2a3548"
-                border.color: root.buzzerHeld ? theme.red : theme.border
-                border.width: 2
-                Text {
-                    anchors.centerIn: parent
-                    text: root.buzzerHeld ? "HOLD ON" : "hold off"
-                    font.pixelSize: 11; font.bold: true
-                    color: root.buzzerHeld ? "white" : theme.text
-                }
-                MouseArea {
-                    anchors.fill: parent
+                PressButton {
+                    label: root.buzzerHeld ? "HOLD ON" : "hold"
+                    color: root.buzzerHeld ? pal.red : "#3a4658"
+                    width: 90; height: 38
                     onClicked: {
                         root.buzzerHeld = !root.buzzerHeld
                         model.holdBuzzer(root.buzzerHeld)
                     }
                 }
             }
+
+            // Backlight slider (bottom)
+            Item {
+                anchors.left: parent.left; anchors.right: parent.right
+                anchors.leftMargin: 20; anchors.rightMargin: 20
+                anchors.bottom: parent.bottom; anchors.bottomMargin: 14
+                height: 30
+
+                Text {
+                    id: blText
+                    anchors.left: parent.left
+                    text: "Backlight: " + root.blValue
+                    font.pixelSize: 12; color: pal.text
+                }
+                Rectangle {
+                    id: blTrack
+                    anchors.left: blText.right; anchors.leftMargin: 14
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    height: 8; radius: 4
+                    color: pal.panelHi
+                    Rectangle {
+                        anchors.left: parent.left
+                        anchors.top: parent.top; anchors.bottom: parent.bottom
+                        width: parent.width * root.blValue / Math.max(1, model.backlightMax)
+                        radius: 4
+                        gradient: Gradient {
+                            orientation: Gradient.Horizontal
+                            GradientStop { position: 0.0; color: "#8C5A00" }
+                            GradientStop { position: 1.0; color: pal.amber }
+                        }
+                    }
+                    Rectangle {
+                        width: 20; height: 20; radius: 10
+                        color: "#fffdf6"
+                        border.color: pal.amber; border.width: 2
+                        anchors.verticalCenter: parent.verticalCenter
+                        x: Math.max(0, parent.width * root.blValue / Math.max(1, model.backlightMax) - width / 2)
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        anchors.topMargin: -12; anchors.bottomMargin: -12
+                        onPressed: setFromMouse(mouseX)
+                        onPositionChanged: if (pressed) setFromMouse(mouseX)
+                        function setFromMouse(mx) {
+                            var v = Math.max(5, Math.min(model.backlightMax,
+                                Math.round(mx / blTrack.width * model.backlightMax)))
+                            model.backlight = v
+                            root.blValue = v
+                        }
+                    }
+                }
+            }
         }
 
-        // Backlight (right)
-        Item {
-            anchors.right: parent.right; anchors.rightMargin: 32
-            anchors.verticalCenter: parent.verticalCenter
-            width: 460; height: 50
+        // — Last key + history —
+        Card {
+            id: histCard
+            anchors.left: parent.left; anchors.right: parent.right
+            anchors.top: bbCard.bottom; anchors.topMargin: 12
+            anchors.bottom: parent.bottom
+            title: "KEY HISTORY"
 
-            Text {
-                id: blLbl
-                anchors.left: parent.left
-                anchors.top: parent.top
-                text: "Backlight: " + root.blValue + " / " + model.backlightMax
-                font.pixelSize: 13; color: theme.text
-            }
             Rectangle {
-                id: blTrack
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.top: blLbl.bottom; anchors.topMargin: 10
-                height: 10; radius: 5
-                color: theme.panelHi
+                id: lastKeyBar
+                anchors.left: parent.left; anchors.right: parent.right
+                anchors.leftMargin: 14; anchors.rightMargin: 14
+                anchors.top: parent.top; anchors.topMargin: 38
+                height: 44
+                radius: 8
+                color: model.lastKeyPressed ? "#1a3f1a" : pal.panelHi
+                border.color: model.lastKeyPressed ? pal.green : pal.border
+                border.width: 1
+
                 Rectangle {
-                    anchors.left: parent.left
-                    anchors.top: parent.top; anchors.bottom: parent.bottom
-                    width: parent.width * root.blValue / Math.max(1, model.backlightMax)
-                    radius: 5
-                    color: theme.amber
-                }
-                Rectangle {
-                    width: 22; height: 22; radius: 11
-                    color: "white"; border.color: theme.amber; border.width: 2
+                    anchors.left: parent.left; anchors.leftMargin: 12
                     anchors.verticalCenter: parent.verticalCenter
-                    x: Math.max(0, parent.width * root.blValue / Math.max(1, model.backlightMax) - width / 2)
+                    width: 18; height: 18; radius: 9
+                    color: model.lastKeyPressed ? pal.green : pal.border
                 }
-                MouseArea {
-                    anchors.fill: parent
-                    anchors.topMargin: -10; anchors.bottomMargin: -10
-                    onPressed: setFromMouse(mouseX)
-                    onPositionChanged: if (pressed) setFromMouse(mouseX)
-                    function setFromMouse(mx) {
-                        var v = Math.max(5, Math.min(model.backlightMax,
-                            Math.round(mx / blTrack.width * model.backlightMax)))
-                        model.backlight = v
-                        root.blValue = v
+                Text {
+                    anchors.left: parent.left; anchors.leftMargin: 42
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: model.lastKeyCode === 0
+                        ? "Last key: (henüz tuş yok — bir tuşa basın)"
+                        : "Last: " + model.lastKeyName + "  code=" + model.lastKeyCode +
+                          "   " + (model.lastKeyPressed ? "▼ PRESSED" : "▲ released")
+                    font.pixelSize: 14; font.bold: model.lastKeyPressed
+                    font.family: "monospace"
+                    color: model.lastKeyPressed ? pal.green : pal.text
+                }
+            }
+
+            ListView {
+                anchors.left: parent.left; anchors.right: parent.right
+                anchors.leftMargin: 14; anchors.rightMargin: 14
+                anchors.top: lastKeyBar.bottom; anchors.topMargin: 8
+                anchors.bottom: parent.bottom; anchors.bottomMargin: 10
+                model: root.keyHistArr
+                clip: true
+                spacing: 1
+                delegate: Text {
+                    text: modelData
+                    font.pixelSize: 11; font.family: "monospace"; color: pal.text
+                }
+            }
+        }
+    }
+
+    // ─── RIGHT PANEL — pendant mirror ────────────────────────────────
+    Item {
+        id: rightPanel
+        anchors.left: leftPanel.right; anchors.leftMargin: 14
+        anchors.right: parent.right; anchors.rightMargin: 14
+        anchors.top: header.bottom; anchors.topMargin: 12
+        anchors.bottom: parent.bottom; anchors.bottomMargin: 14
+
+        // LED bar — mirroring the top-of-pendant indicator strip
+        Card {
+            id: ledBar
+            anchors.left: parent.left; anchors.right: parent.right
+            anchors.top: parent.top
+            height: 140
+            title: "INDICATOR LEDs"
+
+            Row {
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.bottom: parent.bottom; anchors.bottomMargin: 12
+                spacing: 12
+
+                LedTile {
+                    label: "STOP";   sub: "port 0"; ledColor: pal.red
+                    on: (root.ledShadow & 0x01) !== 0
+                    onToggleRequested: model.setLed(0, !on)
+                }
+                LedTile {
+                    label: "SERVO";  sub: "port 1"; ledColor: pal.green
+                    on: (root.ledShadow & 0x02) !== 0
+                    onToggleRequested: model.setLed(1, !on)
+                }
+                LedTile {
+                    label: "ENABLE"; sub: "port 2"; ledColor: pal.green
+                    on: (root.ledShadow & 0x04) !== 0
+                    onToggleRequested: model.setLed(2, !on)
+                }
+                LedTile {
+                    label: "?";      sub: "port 3"; ledColor: pal.amber
+                    on: (root.ledShadow & 0x08) !== 0
+                    onToggleRequested: model.setLed(3, !on)
+                }
+
+                Rectangle { // ALL OFF beside LEDs
+                    width: 84; height: 110; radius: 12
+                    anchors.verticalCenter: parent.verticalCenter
+                    color: aoMa.pressed ? "#5a1a1a" : "#3a1212"
+                    border.color: pal.red; border.width: 2
+                    Text {
+                        anchors.centerIn: parent
+                        text: "ALL\nOFF"; horizontalAlignment: Text.AlignHCenter
+                        font.pixelSize: 14; font.bold: true; color: pal.red
+                    }
+                    MouseArea { id: aoMa; anchors.fill: parent; onClicked: model.allLedsOff() }
+                }
+            }
+        }
+
+        // Keypad — 2 cols × 7 rows mirroring the right side of the pendant
+        Card {
+            id: keypadCard
+            anchors.left: parent.left; anchors.right: parent.right
+            anchors.top: ledBar.bottom; anchors.topMargin: 12
+            anchors.bottom: parent.bottom
+            title: "MATRIX KEYS  ·  basın (otomatik haritalanır)"
+
+            // Per-row layout: 7 rows top→bottom, each with [−] [+]
+            Column {
+                anchors.left: parent.left; anchors.right: parent.right
+                anchors.leftMargin: 14; anchors.rightMargin: 14
+                anchors.top: parent.top; anchors.topMargin: 44
+                anchors.bottom: resetBar.top; anchors.bottomMargin: 10
+                spacing: 4
+
+                Repeater {
+                    model: 7
+
+                    Item {
+                        property int rowN: index
+                        width: parent.width
+                        height: (parent.height - parent.spacing * 6) / 7
+
+                        KeyCell {
+                            anchors.left: parent.left
+                            width: parent.width / 2 - 4
+                            height: parent.height
+                            cellIndex: rowN * 2          // top half of pair: "−"
+                            sign: "−"
+                            rowLabel: "row " + (rowN + 1)
+                            code: root.keyMap[cellIndex] !== undefined ? root.keyMap[cellIndex] : -1
+                            justPressed: code >= 0 && model.lastKeyPressed && model.lastKeyCode === code
+                            onTapped: root.tapCell(cellIndex)
+                        }
+                        KeyCell {
+                            anchors.right: parent.right
+                            width: parent.width / 2 - 4
+                            height: parent.height
+                            cellIndex: rowN * 2 + 1      // bottom half: "+"
+                            sign: "+"
+                            rowLabel: "row " + (rowN + 1)
+                            code: root.keyMap[cellIndex] !== undefined ? root.keyMap[cellIndex] : -1
+                            justPressed: code >= 0 && model.lastKeyPressed && model.lastKeyCode === code
+                            onTapped: root.tapCell(cellIndex)
+                        }
+                    }
+                }
+            }
+
+            // Reset / counter footer
+            Item {
+                id: resetBar
+                anchors.left: parent.left; anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                anchors.leftMargin: 14; anchors.rightMargin: 14
+                height: 30
+
+                Text {
+                    anchors.left: parent.left
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "Mapped: " + root.mappedCount + " / 14   " +
+                          (root.mappedCount < 14 ? "(auto-learn aktif)" : "(haritalama tamam)")
+                    font.pixelSize: 11; color: pal.muted
+                }
+                Rectangle {
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 90; height: 24; radius: 4
+                    color: resetMa.pressed ? "#3a2020" : "#241818"
+                    border.color: pal.border; border.width: 1
+                    Text { anchors.centerIn: parent; text: "reset map"; font.pixelSize: 11; color: pal.muted }
+                    MouseArea {
+                        id: resetMa
+                        anchors.fill: parent
+                        onClicked: {
+                            var fresh = []
+                            for (var i = 0; i < 14; i++) fresh.push(-1)
+                            root.keyMap = fresh
+                            root.selectedCell = -1
+                        }
                     }
                 }
             }
         }
     }
 
-    // ---------- Row 4: History footer (rest of screen) ----------
-    Rectangle {
-        anchors.left: parent.left; anchors.leftMargin: 16
-        anchors.right: parent.right; anchors.rightMargin: 16
-        anchors.top: row3.bottom; anchors.topMargin: 8
-        anchors.bottom: parent.bottom; anchors.bottomMargin: 12
-        radius: 8; color: theme.panel; border.color: theme.border; border.width: 1
-
-        Text {
-            id: hLbl
-            anchors.left: parent.left; anchors.leftMargin: 14
-            anchors.top: parent.top; anchors.topMargin: 6
-            text: "Key history (newest first)"
-            font.pixelSize: 11; color: theme.textMuted
-        }
-        ListView {
-            anchors.left: parent.left; anchors.right: parent.right
-            anchors.leftMargin: 14; anchors.rightMargin: 14
-            anchors.top: hLbl.bottom; anchors.topMargin: 4
-            anchors.bottom: parent.bottom; anchors.bottomMargin: 6
-            model: root.keyHistArr
-            clip: true
-            spacing: 1
-            delegate: Text {
-                text: modelData
-                font.pixelSize: 11; font.family: "monospace"
-                color: theme.text
-            }
-        }
-    }
-
-    // ---------- Reactive properties (QML → C++ bridge) ----------
+    // ─── Reactive state ──────────────────────────────────────────────
     property int     ledShadow:      0
     property string  modeText:       "—"
     property string  modeByteText:   "--------"
@@ -495,12 +481,31 @@ Rectangle {
     property string  enableByteText: "--------"
     property int     blValue:        50
     property var     keyHistArr:     []
-    property bool    buzzerHeld:     false
-
-    // 14 cells, initially unassigned (-1). Tap a cell, then press the
-    // physical button you want there — the code is recorded.
     property var     keyMap:         [-1,-1,-1,-1,-1,-1,-1, -1,-1,-1,-1,-1,-1,-1]
     property int     selectedCell:   -1
+    property bool    buzzerHeld:     false
+
+    // Count of cells already mapped (-1 means unmapped).
+    property int     mappedCount: {
+        var c = 0
+        for (var i = 0; i < keyMap.length; i++) if (keyMap[i] >= 0) c++
+        return c
+    }
+
+    function tapCell(idx) {
+        // Manual override: tap any cell to clear it. The next physical key
+        // press will be re-assigned to the first empty cell (cells fill
+        // left-to-right top-to-bottom). Re-tap to cancel selection.
+        if (root.selectedCell === idx) {
+            root.selectedCell = -1
+        } else {
+            // Clear the tapped cell so it becomes the new "next-empty" slot.
+            var copy = root.keyMap.slice()
+            copy[idx] = -1
+            root.keyMap = copy
+            root.selectedCell = idx
+        }
+    }
 
     Connections {
         target: model
@@ -514,12 +519,24 @@ Rectangle {
         }
         onBacklightChanged:  root.blValue = model.backlight
         onKeyEvent: {
-            // Record the just-pressed code into the currently selected cell.
-            if (root.selectedCell >= 0 && model.lastKeyPressed) {
+            // Auto-learn: on a fresh (un-mapped) press, assign the code to
+            // the next empty cell (lowest index where keyMap[i] === -1).
+            if (model.lastKeyPressed) {
+                var code = model.lastKeyCode
                 var copy = root.keyMap.slice()
-                copy[root.selectedCell] = model.lastKeyCode
-                root.keyMap = copy
-                root.selectedCell = -1
+                var alreadyMapped = false
+                for (var i = 0; i < copy.length; i++) {
+                    if (copy[i] === code) { alreadyMapped = true; break }
+                }
+                if (!alreadyMapped) {
+                    for (var j = 0; j < copy.length; j++) {
+                        if (copy[j] === -1) {
+                            copy[j] = code
+                            root.keyMap = copy
+                            break
+                        }
+                    }
+                }
             }
             root.keyHistArr = model.keyHistory
         }
@@ -534,5 +551,196 @@ Rectangle {
         root.enableByteText = model.enableByte
         root.blValue        = model.backlight
         root.keyHistArr     = model.keyHistory
+    }
+
+    // ── Card component (panel with gradient + title strip) ─────────
+    component Card : Item {
+        property string title: ""
+        Rectangle {
+            anchors.fill: parent
+            radius: 12
+            gradient: Gradient {
+                orientation: Gradient.Vertical
+                GradientStop { position: 0.0; color: "#1f2a42" }
+                GradientStop { position: 1.0; color: "#121828" }
+            }
+            border.color: pal.border; border.width: 1
+        }
+        Rectangle { // title strip
+            anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
+            anchors.margins: 1
+            height: 28
+            radius: 12
+            color: "#1c2942"
+            Rectangle { // hide bottom-rounded corners
+                anchors.left: parent.left; anchors.right: parent.right
+                anchors.bottom: parent.bottom; height: parent.height / 2
+                color: "#1c2942"
+            }
+        }
+        Text {
+            text: parent.title
+            anchors.top: parent.top; anchors.topMargin: 6
+            anchors.left: parent.left; anchors.leftMargin: 14
+            font.pixelSize: 12; font.bold: true; color: pal.muted
+            font.letterSpacing: 1.0
+        }
+    }
+
+    // ── ModePill component ─────────────────────────────────────────
+    component ModePill : Item {
+        property string name: ""
+        property color  color: pal.green
+        property bool   active: false
+        width: 240; height: 50
+        Rectangle {
+            anchors.fill: parent
+            radius: 25
+            gradient: Gradient {
+                orientation: Gradient.Vertical
+                GradientStop { position: 0.0; color: parent.parent.active
+                    ? Qt.lighter(parent.parent.color, 1.05) : "#1f2a42" }
+                GradientStop { position: 1.0; color: parent.parent.active
+                    ? Qt.darker(parent.parent.color, 1.3) : "#121828" }
+            }
+            border.color: parent.parent.active
+                ? Qt.lighter(parent.parent.color, 1.4) : pal.border
+            border.width: parent.parent.active ? 2 : 1
+        }
+        Rectangle { // glow when active
+            visible: parent.active
+            anchors.fill: parent
+            anchors.margins: -3
+            radius: 28
+            color: "transparent"
+            border.color: parent.color; border.width: 2
+            opacity: 0.35
+        }
+        Rectangle { // inner dot
+            anchors.left: parent.left; anchors.leftMargin: 14
+            anchors.verticalCenter: parent.verticalCenter
+            width: 18; height: 18; radius: 9
+            color: parent.parent.active ? "white" : pal.border
+        }
+        Text {
+            anchors.centerIn: parent
+            anchors.horizontalCenterOffset: 12
+            text: parent.name
+            font.pixelSize: 22; font.bold: true; font.letterSpacing: 2.0
+            color: parent.parent.active ? "white" : pal.muted
+        }
+    }
+
+    // ── EnableStage component ──────────────────────────────────────
+    component EnableStage : Item {
+        property string label: ""
+        property color  color: pal.green
+        property bool   active: false
+        width: 240; height: 50
+        Rectangle {
+            anchors.fill: parent
+            radius: 8
+            gradient: Gradient {
+                orientation: Gradient.Vertical
+                GradientStop { position: 0.0; color: parent.parent.active
+                    ? Qt.lighter(parent.parent.color, 1.2) : "#1f2a42" }
+                GradientStop { position: 1.0; color: parent.parent.active
+                    ? Qt.darker(parent.parent.color, 1.4) : "#121828" }
+            }
+            border.color: parent.parent.active
+                ? Qt.lighter(parent.parent.color, 1.4) : pal.border
+            border.width: parent.parent.active ? 2 : 1
+        }
+        Text {
+            anchors.centerIn: parent
+            text: parent.label
+            font.pixelSize: 18; font.bold: true; font.letterSpacing: 2.0
+            color: parent.parent.active ? "#001020" : pal.muted
+        }
+    }
+
+    // ── Press button ──────────────────────────────────────────────
+    component PressButton : Rectangle {
+        property string label: ""
+        property color  color: pal.blue
+        signal clicked()
+
+        radius: 8
+        gradient: Gradient {
+            orientation: Gradient.Vertical
+            GradientStop { position: 0.0; color: btnMa.pressed ? Qt.darker(parent.parent.color, 1.4) : Qt.lighter(parent.parent.color, 1.15) }
+            GradientStop { position: 1.0; color: btnMa.pressed ? Qt.darker(parent.parent.color, 1.7) : Qt.darker(parent.parent.color, 1.2) }
+        }
+        border.color: Qt.darker(parent.parent.color, 1.6); border.width: 1
+        Text {
+            anchors.centerIn: parent
+            text: parent.label
+            font.pixelSize: 13; font.bold: true; color: "white"
+        }
+        MouseArea {
+            id: btnMa; anchors.fill: parent
+            onClicked: parent.parent.clicked()
+        }
+    }
+
+    // ── KeyCell ──────────────────────────────────────────────────
+    component KeyCell : Item {
+        property int    cellIndex: 0
+        property string sign:      "−"
+        property string rowLabel:  ""
+        property int    code:      -1
+        property bool   justPressed: false
+        signal tapped()
+
+        Rectangle {
+            anchors.fill: parent
+            radius: 10
+            border.color: root.selectedCell === parent.parent.cellIndex ? pal.amber :
+                           parent.parent.justPressed ? pal.green :
+                           parent.parent.code >= 0 ? pal.border : "#243047"
+            border.width: root.selectedCell === parent.parent.cellIndex ? 3
+                          : parent.parent.justPressed ? 3 : 1
+            gradient: Gradient {
+                orientation: Gradient.Vertical
+                GradientStop {
+                    position: 0.0
+                    color: root.selectedCell === parent.parent.parent.cellIndex ? "#3a2f00" :
+                           parent.parent.parent.justPressed ? "#1f5f1f" :
+                           parent.parent.parent.code >= 0 ? "#27314a" : "#1a2336"
+                }
+                GradientStop {
+                    position: 1.0
+                    color: root.selectedCell === parent.parent.parent.cellIndex ? "#1a1700" :
+                           parent.parent.parent.justPressed ? "#0c3a0c" :
+                           parent.parent.parent.code >= 0 ? "#1a2236" : "#0e1626"
+                }
+            }
+        }
+        Text {
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.top: parent.top; anchors.topMargin: 4
+            text: parent.rowLabel
+            font.pixelSize: 9; color: pal.muted
+        }
+        Text {
+            anchors.centerIn: parent
+            text: parent.sign
+            font.pixelSize: parent.height > 70 ? 42 : 32
+            font.bold: true
+            color: root.selectedCell === parent.cellIndex ? pal.amber :
+                   parent.justPressed ? pal.green :
+                   parent.code >= 0 ? pal.text : pal.muted
+        }
+        Text {
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.bottom: parent.bottom; anchors.bottomMargin: 4
+            text: parent.code >= 0 ? ("code " + parent.code) : "—"
+            font.pixelSize: 10; font.family: "monospace"
+            color: parent.justPressed ? pal.green : pal.muted
+        }
+        MouseArea {
+            anchors.fill: parent
+            onClicked: parent.tapped()
+        }
     }
 }

@@ -26,9 +26,19 @@ int main(int argc, char* argv[])
     smbq6r::DiagnosticsModel model;
 
     QQuickView view;
-    view.setTitle(QStringLiteral("SMB-Q6R Diagnostics"));
+    view.setTitle(QStringLiteral("SMB-Q6R Hardware Mapping"));
     view.setResizeMode(QQuickView::SizeRootObjectToView);
     view.resize(1280, 800);
+
+    // Kiosk-style window: no title bar, no minimize/close, always on top.
+    // Prevents the operator from accidentally dragging the window off-screen
+    // or sending it behind other apps with no way back. To exit during
+    // development, kill via SSH:  killall smb_q6r
+    view.setFlags(Qt::Window
+                  | Qt::FramelessWindowHint
+                  | Qt::WindowStaysOnTopHint
+                  | Qt::CustomizeWindowHint);
+
     view.rootContext()->setContextProperty(QStringLiteral("model"), &model);
     view.setSource(QUrl(QStringLiteral("qrc:/qml/Main.qml")));
 
@@ -39,6 +49,6 @@ int main(int argc, char* argv[])
         return -1;
     }
 
-    view.show();
+    view.showFullScreen();
     return app.exec();
 }

@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include <QSocketNotifier>
+#include <QTimer>
 #include <QDebug>
 
 namespace smbq6r {
@@ -41,9 +42,23 @@ SwitchMonitor::SwitchMonitor(QObject* parent)
 
     // Trigger an initial read so the model reflects current state without
     // requiring a state transition. The drivers may return EAGAIN if no
-    // frame has been pushed yet — that's fine.
+    // frame has been pushed yet — that's fine; we'll poll briefly below.
     if (buttonsFd_ >= 0)    onButtonsReadable();
     if (buttonstopFd_ >= 0) onButtonstopReadable();
+
+    // Some kernels only push a /dev/buttons frame on edge transitions, so a
+    // freshly opened fd has nothing waiting and the UI shows mode=None until
+    // the operator wiggles the key. Poll at 200 ms for a few seconds so the
+    // first frame is captured even without a transition.
+    primeTimer_ = new QTimer(this);
+    primeTimer_->setInterval(200);
+    connect(primeTimer_, &QTimer::timeout, this, [this]() {
+        if (buttonsFd_    >= 0) onButtonsReadable();
+        if (buttonstopFd_ >= 0) onButtonstopReadable();
+        if (mode_ != Mode::None) primeTimer_->stop();
+    });
+    primeTimer_->start();
+    QTimer::singleShot(10'000, primeTimer_, &QTimer::stop);
 }
 
 SwitchMonitor::~SwitchMonitor()
@@ -63,8 +78,12 @@ void SwitchMonitor::onButtonsReadable()
     // Build human-readable raw byte string for the UI.
     QString raw = QString::fromLatin1(buf, kFrameLen);
     Mode newMode = Mode::None;
-    if (buf[3] == '1') newMode = Mode::Auto;
-    if (buf[4] == '1') newMode = Mode::Manual;
+    // HN00-09Q6 measured bit positions (differs from HT0803/HT0804 docs):
+    //   bit 3 = Manual,  bit 4 = Auto,  bit 5 = Stop.
+    // Verified empirically 2026-05-12: rotating the key toward the panel's
+    // "Auto" label set bit 4 (originally documented as Manual). We swap.
+    if (buf[3] == '1') newMode = Mode::Manual;
+    if (buf[4] == '1') newMode = Mode::Auto;
     if (buf[5] == '1') newMode = Mode::Stop;
 
     if (raw != modeByte_ || newMode != mode_) {
