@@ -102,8 +102,12 @@ void SwitchMonitor::onButtonstopReadable()
     }
 
     QString raw = QString::fromLatin1(buf, kFrameLen);
-    bool s1 = buf[7] == '1';
-    bool s2 = buf[6] == '1';
+    // HN00-09Q6 measured 2026-05-12: vendor docs say bit 6=S2, bit 7=S1
+    // (right-most chars), but vendor's own button.cpp reads buf[0]/buf[1]
+    // and live test confirms — pressing the deadman flips the LEFT-most
+    // chars ("10000000"). We adopt the actually-observed positions.
+    bool s1 = buf[0] == '1';
+    bool s2 = buf[1] == '1';
 
     if (raw != enableByte_ || s1 != s1_ || s2 != s2_) {
         enableByte_ = raw;

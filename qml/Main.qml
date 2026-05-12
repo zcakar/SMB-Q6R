@@ -101,40 +101,37 @@ Rectangle {
         width: 514
         height: root.height - header.height - 24
 
-        // Mode switch
+        // Mode switch — three pills stacked vertically (no overlap)
         Card {
             id: modeCard
             x: 0; y: 0
-            width: parent.width; height: 174
+            width: parent.width; height: 210
             title: "MODE SWITCH"
 
             Column {
-                anchors.top: parent.top; anchors.topMargin: 44
+                anchors.top: parent.top; anchors.topMargin: 42
                 anchors.horizontalCenter: parent.horizontalCenter
-                spacing: 8
+                spacing: 6
 
                 ModePill {
+                    width: 280; height: 42
                     name: "AUTO"
                     activeColor: pal.success
                     active: root.modeText.toUpperCase() === "AUTO"
                 }
                 ModePill {
+                    width: 280; height: 42
                     name: "MANUAL"
                     activeColor: pal.warning
                     active: root.modeText.toUpperCase() === "MANUAL"
                 }
+                ModePill {
+                    width: 280; height: 42
+                    name: "STOP"
+                    activeColor: pal.danger
+                    active: root.modeText.toUpperCase() === "STOP"
+                }
             }
-            // STOP pill on the right, larger
-            ModePill {
-                anchors.right: parent.right; anchors.rightMargin: 14
-                anchors.verticalCenter: parent.verticalCenter
-                anchors.verticalCenterOffset: 8
-                width: 200
-                name: "STOP"
-                activeColor: pal.danger
-                active: root.modeText.toUpperCase() === "STOP"
-            }
-            // Footer hint / raw byte
             Text {
                 anchors.bottom: parent.bottom; anchors.bottomMargin: 8
                 anchors.horizontalCenter: parent.horizontalCenter
@@ -146,42 +143,42 @@ Rectangle {
             }
         }
 
-        // Deadman switch
+        // Deadman switch — three stages stacked vertically
         Card {
             id: deadmanCard
             x: 0; y: modeCard.y + modeCard.height + 10
-            width: parent.width; height: 174
-            title: "DEADMAN SWITCH  (tutamak)"
+            width: parent.width; height: 210
+            title: "DEADMAN SWITCH"
 
             Column {
-                anchors.top: parent.top; anchors.topMargin: 44
+                anchors.top: parent.top; anchors.topMargin: 42
                 anchors.horizontalCenter: parent.horizontalCenter
-                spacing: 8
+                spacing: 6
 
                 DeadmanStage {
+                    width: 280; height: 42
                     label: "RELEASED"
                     stageColor: pal.textMuted
                     active: !root.enS1 && !root.enS2
                 }
                 DeadmanStage {
+                    width: 280; height: 42
                     label: "ACTIVE"
                     stageColor: pal.success
                     active: root.enS1 && root.enS2
                 }
-            }
-            DeadmanStage {
-                anchors.right: parent.right; anchors.rightMargin: 14
-                anchors.verticalCenter: parent.verticalCenter
-                anchors.verticalCenterOffset: 8
-                width: 200
-                label: "PANIC"
-                stageColor: pal.danger
-                active: (root.enS1 !== root.enS2)
+                DeadmanStage {
+                    width: 280; height: 42
+                    label: "PANIC"
+                    stageColor: pal.danger
+                    // half-state (only one contact closed) = transitional/panic
+                    active: (root.enS1 !== root.enS2)
+                }
             }
             Row {
                 anchors.bottom: parent.bottom; anchors.bottomMargin: 8
                 anchors.horizontalCenter: parent.horizontalCenter
-                spacing: 24
+                spacing: 18
                 Text { text: "S1: " + (root.enS1 ? "1" : "0"); font.pixelSize: 11; font.family: "monospace"
                        color: root.enS1 ? pal.warning : pal.textMuted }
                 Text { text: "S2: " + (root.enS2 ? "1" : "0"); font.pixelSize: 11; font.family: "monospace"
@@ -355,27 +352,29 @@ Rectangle {
                 anchors.horizontalCenter: parent.horizontalCenter
                 spacing: 10
 
+                // HN00-09Q6 LED port → physical LED (confirmed via test 2026-05-12):
+                //   port 2 → STOP (red).   Other ports (0, 1, 3) not yet identified.
                 LedTile {
                     width: 130; height: parent.height
-                    label: "STOP";   sub: "port 0"; ledColor: pal.danger
+                    label: "?";    sub: "port 0"; ledColor: pal.textMuted
                     on: (root.ledShadow & 0x01) !== 0
                     onToggleRequested: diag.setLed(0, !on)
                 }
                 LedTile {
                     width: 130; height: parent.height
-                    label: "SERVO";  sub: "port 1"; ledColor: pal.success
+                    label: "?";    sub: "port 1"; ledColor: pal.textMuted
                     on: (root.ledShadow & 0x02) !== 0
                     onToggleRequested: diag.setLed(1, !on)
                 }
                 LedTile {
                     width: 130; height: parent.height
-                    label: "ENABLE"; sub: "port 2"; ledColor: pal.success
+                    label: "STOP"; sub: "port 2"; ledColor: pal.danger
                     on: (root.ledShadow & 0x04) !== 0
                     onToggleRequested: diag.setLed(2, !on)
                 }
                 LedTile {
                     width: 130; height: parent.height
-                    label: "?";      sub: "port 3"; ledColor: pal.warning
+                    label: "?";    sub: "port 3"; ledColor: pal.textMuted
                     on: (root.ledShadow & 0x08) !== 0
                     onToggleRequested: diag.setLed(3, !on)
                 }
@@ -421,7 +420,7 @@ Rectangle {
                             height: parent.height
                             cellIndex: rowN * 2
                             sign: "−"
-                            axisLabel: "Axis " + (rowN + 1) + "  ·  J" + (rowN + 1) + "−"
+                            axisLabel: "J" + (rowN + 1) + " −"
                             code: root.keyMap[cellIndex] !== undefined ? root.keyMap[cellIndex] : -1
                             justPressed: code >= 0 && diag.lastKeyPressed && diag.lastKeyCode === code
                             selected: root.selectedCell === cellIndex
@@ -433,7 +432,7 @@ Rectangle {
                             height: parent.height
                             cellIndex: rowN * 2 + 1
                             sign: "+"
-                            axisLabel: "Axis " + (rowN + 1) + "  ·  J" + (rowN + 1) + "+"
+                            axisLabel: "J" + (rowN + 1) + " +"
                             code: root.keyMap[cellIndex] !== undefined ? root.keyMap[cellIndex] : -1
                             justPressed: code >= 0 && diag.lastKeyPressed && diag.lastKeyCode === code
                             selected: root.selectedCell === cellIndex
