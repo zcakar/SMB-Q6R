@@ -4,7 +4,7 @@
         <file>LedTile.qml</file>
         <file>Card.qml</file>
         <file>ModePill.qml</file>
-        <file>EnableStage.qml</file>
+        <file>DeadmanStage.qml</file>
         <file>PressButton.qml</file>
         <file>KeyCell.qml</file>
     </qresource>

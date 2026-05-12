@@ -1,5 +1,5 @@
-// Panel card with gradient body, soft border and a title strip on top.
-// Children declared inside become content overlaid on the body.
+// Light-theme panel card — white body, soft border, light-gray title strip.
+// ABB FlexPendant aesthetic; children declared inside become content.
 
 import QtQuick 2.12
 
@@ -9,32 +9,36 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        radius: 12
-        gradient: Gradient {
-            orientation: Gradient.Vertical
-            GradientStop { position: 0.0; color: "#1f2a42" }
-            GradientStop { position: 1.0; color: "#121828" }
-        }
-        border.color: "#2c3a55"; border.width: 1
+        radius: 6
+        color: "#ffffff"
+        border.color: "#d1d5db"
+        border.width: 1
     }
-    Rectangle {  // title strip — rounded top only (mask bottom corners)
+    // Title strip — flat, slightly darker, separator line at bottom
+    Rectangle {
         anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
         anchors.margins: 1
-        height: 28
-        radius: 12
-        color: "#1c2942"
+        height: 32
+        radius: 6
+        color: "#f3f4f6"
+        // mask bottom-rounded corners so only top is rounded
         Rectangle {
             anchors.left: parent.left; anchors.right: parent.right
             anchors.bottom: parent.bottom; height: parent.height / 2
-            color: "#1c2942"
+            color: "#f3f4f6"
+        }
+        Rectangle {
+            anchors.left: parent.left; anchors.right: parent.right
+            anchors.bottom: parent.bottom; height: 1
+            color: "#e5e7eb"
         }
     }
     Text {
         text: card.title
-        anchors.top: parent.top; anchors.topMargin: 6
+        anchors.top: parent.top; anchors.topMargin: 10
         anchors.left: parent.left; anchors.leftMargin: 14
         font.pixelSize: 12; font.bold: true
-        color: "#9aa8bd"
         font.letterSpacing: 1.0
+        color: "#374151"
     }
 }

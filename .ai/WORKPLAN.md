@@ -32,21 +32,29 @@ takım çalışmasının temelini atmak.
 itibarıyla bizim app fiziksel donanımı vendor'ın kendi demolarıyla 1:1
 aynı şekilde yönetebiliyor olmalı.
 
-**Yapılacaklar**
-- ✅ Docker Focal-arm64 builder image
-- ✅ CMake + cmake/aarch64-linux-gnu.cmake toolchain
-- ✅ scripts/docker-build.sh + scripts/deploy.sh
-- ✅ HwIo singleton + LedController (Iteration A — smoke deployed)
-- ⏳ Vendor HWInterfaceDemo'larını CMake'e adapte et + cross-compile et
-  (`vendor-demos/` dizini) — `.ai/PHASE1_TEST_PLAN.md` §1'e göre
-- ⏳ Iter B: SwitchMonitor (Enable + Mode), vendor button/rotary ile karşılaştır
-- ⏳ Iter C: BuzzerController, vendor pwm ile karşılaştır
-- ⏳ Iter D: BacklightController, vendor backlight ile karşılaştır
-- ⏳ Iter E: Matrix keypad listener, vendor matrixKeys ile karşılaştır
-- ⏳ Iter F: Wheel handler, vendor wheel ile karşılaştır
+**Yapılanlar (2026-05-11 → 2026-05-12)**
+- ✅ Docker Focal-arm64 builder image (`smb-q6r-builder:focal-arm64`)
+- ✅ CMake + cmake/aarch64-linux-gnu.cmake toolchain (Noble artığı,
+     deprecated; Docker yolu kullanılıyor)
+- ✅ `scripts/docker-build.sh` + `scripts/deploy.sh` + `scripts/device-permissions.sh`
+- ✅ HwIo singleton + 5 subsystem (LED, Switch, Buzzer, Backlight, MatrixKeys)
+- ✅ Vendor HWInterfaceDemo'ların tümü CMake'e adapte + cross-compile
+     edildi (`vendor-demos/`); cihaza deploy edilmiş — oracle olarak hazır
+- ✅ Iter B/C/D/E **birleşik** tek sayfalı UI olarak teslim edildi
+- ✅ Light-theme ABB FlexPendant esinli arayüz; realistic key tasarımı
+- ✅ Kiosk fullscreen; FramelessWindowHint XFCE'de görünmez yapıyordu, kaldırıldı
+- ✅ Mode bit swap (HN00-09Q6 vendor docs'tan farklı: bit 4=Auto)
+- ✅ udev permission setup (plugdev grubu)
+- ✅ GitHub remote `git@github.com:zcakar/SMB-Q6R.git` (push edildi)
+
+**Bekleyen**
+- ⏳ LED port → fiziksel LED haritalama (kullanıcı testi)
+- ⏳ Matrix key code → fiziksel pozisyon haritalama (auto-learn ile)
+- ⏳ Iter F: Wheel handler `/dev/input/event1` (rotary)
 - ⏳ Iter G: SystemInfo widget
-- ⏳ Final UI: 7-tab TabBar (QtQuick 2 primitive'lerden elle yapılmış)
-- ⏳ Karşılaştırma matrisi (`PHASE1_TEST_PLAN.md` §2-3) ENGINEERING_LOG'a yazılır
+- ⏳ Karşılaştırma matrisi (`PHASE1_TEST_PLAN.md` §2-3) sonuçları
+     ENGINEERING_LOG'a yazılır
+- ⏳ Phase 1 closeout entry'si
 
 **Bitiş Kriteri (18 madde)**
 1. Cross-compile pipeline tekrarlanabilir

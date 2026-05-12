@@ -129,6 +129,51 @@ Aralık 0..100.
 `/dev/ttyS0` ve `/dev/ttyS1` yok — eski manuel HT0803'te `/dev/ttyS1`
 belirtmişti, **HN00-09Q6'da `/dev/ttyS2`** kullanılır.
 
+## Cihaz İzinleri (Phase 1'de Uygulandı)
+
+`scripts/device-permissions.sh` veya doğrudan SSH üzerinden uygulanır.
+
+Kurulan udev kuralı `/etc/udev/rules.d/99-smb-q6r.rules`:
+
+```
+KERNEL=="leds",       MODE="0660", GROUP="plugdev", TAG+="uaccess"
+KERNEL=="buttons",    MODE="0660", GROUP="plugdev", TAG+="uaccess"
+KERNEL=="buttonstop", MODE="0660", GROUP="plugdev", TAG+="uaccess"
+KERNEL=="pwm",        MODE="0660", GROUP="plugdev", TAG+="uaccess"
+KERNEL=="event[0-9]*", SUBSYSTEM=="input",
+    MODE="0660", GROUP="plugdev", TAG+="uaccess"
+ACTION=="add", SUBSYSTEM=="backlight", \
+    RUN+="/bin/sh -c 'chgrp plugdev /sys/class/backlight/$kernel/brightness && chmod g+w /sys/class/backlight/$kernel/brightness'"
+```
+
+Tronlong `plugdev` grubunda zaten vardı; ek olarak `input` grubuna da
+eklendi (mevcut X oturumu için relogin/reboot lazım, ama plugdev
+üzerinden event[0-9]* okunabildiği için Phase 1 acil ihtiyaç değil).
+
+**Sudo özelliği:** Tronlong NOPASSWD sudoers. Komut akışı:
+```bash
+echo "" | sudo -S -p "" <komut>
+```
+
+## Switch Driver Davranışı (Kritik)
+
+`/dev/buttons` ve `/dev/buttonstop` **edge-driven** sürücüler. Fresh open
+sonrası read() EAGAIN döner; **mevcut switch konumu yazılım tarafından
+okunamaz**, yalnız transition'lar push'lanır.
+
+Doğrulanmış davranış (Python ile test edildi):
+
+```python
+import os, select
+fd = os.open("/dev/buttons", os.O_RDONLY | os.O_NONBLOCK)
+pr = select.poll(); pr.register(fd, select.POLLIN)
+pr.poll(1000)  # → boş döner (no events)
+# Blocking read 2 saniye → timeout
+```
+
+Workaround: UI'de açılışta "Anahtarı bir kez oynatın" prompt göster;
+ilk transition sonrası state lock'lanır.
+
 ## Pratik İpuçları
 
 - `sudo` çağırınca parola boş olabilir (kullanıcı sudoers'da NOPASSWD ile

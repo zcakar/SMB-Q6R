@@ -1,45 +1,38 @@
-// Pill-shaped mode indicator (AUTO / MANUAL / STOP). Glows when active.
+// Mode-selector indicator (AUTO / MANUAL / STOP). Light theme. When
+// active, the body fills with the mode colour and the LED dot turns white.
 
 import QtQuick 2.12
 
 Item {
     id: pill
     property string name: ""
-    property color  pillColor: "#4dff77"
+    property color  activeColor: "#16a34a"
     property bool   active: false
-    width: 240; height: 50
+
+    width: 230; height: 44
 
     Rectangle {
         anchors.fill: parent
-        radius: 25
-        gradient: Gradient {
-            orientation: Gradient.Vertical
-            GradientStop { position: 0.0; color: pill.active ? Qt.lighter(pill.pillColor, 1.05) : "#1f2a42" }
-            GradientStop { position: 1.0; color: pill.active ? Qt.darker(pill.pillColor, 1.3) : "#121828" }
-        }
-        border.color: pill.active ? Qt.lighter(pill.pillColor, 1.4) : "#2c3a55"
-        border.width: pill.active ? 2 : 1
+        radius: 6
+        color: pill.active ? pill.activeColor : "#f9fafb"
+        border.color: pill.active ? Qt.darker(pill.activeColor, 1.3) : "#d1d5db"
+        border.width: 1
     }
-    Rectangle {  // outer glow
-        visible: pill.active
-        anchors.fill: parent
-        anchors.margins: -3
-        radius: 28
-        color: "transparent"
-        border.color: pill.pillColor; border.width: 2
-        opacity: 0.35
-    }
-    Rectangle {  // inner dot
-        anchors.left: parent.left; anchors.leftMargin: 14
+    // LED dot
+    Rectangle {
+        x: 14
         anchors.verticalCenter: parent.verticalCenter
-        width: 18; height: 18; radius: 9
-        color: pill.active ? "white" : "#2c3a55"
+        width: 16; height: 16; radius: 8
+        color: pill.active ? "white" : "#e5e7eb"
+        border.color: pill.active ? Qt.lighter(pill.activeColor, 1.4) : "#b0b4ba"
+        border.width: 2
     }
+    // Label
     Text {
-        anchors.centerIn: parent
-        anchors.horizontalCenterOffset: 12
+        x: 44
+        anchors.verticalCenter: parent.verticalCenter
         text: pill.name
-        font.pixelSize: 22; font.bold: true; font.letterSpacing: 2.0
-        color: pill.active ? "white" : "#7e8ba6"
+        font.pixelSize: 17; font.bold: true; font.letterSpacing: 2.0
+        color: pill.active ? "white" : "#6b7280"
     }
 }

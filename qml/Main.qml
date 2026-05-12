@@ -1,13 +1,13 @@
 // SMB-Q6R Teach Pendant Hardware Mapping
 //
-// Visual mirror of the HN00-09Q6 (device code MAT-QT-TP-PC10C-Q6-UBT-L1)
-// physical layout: LEDs and keypad live on the right (matching where the
-// operator's right hand falls); mode switch, enable switch and ancillary
-// controls live on the left.
+// Visual mirror of the HN00-09Q6 (device code MAT-QT-TP-PC10C-Q6-UBT-L1).
+// Light theme inspired by ABB FlexPendant / FANUC iPendant; layout uses
+// explicit pixel positioning to avoid the anchor cascading bugs that
+// caused earlier shifts.
 //
-// Auto-learn matrix-key mapping: press any physical button and its key
-// code is recorded into the next empty cell automatically; subsequent
-// presses just highlight the already-mapped cell.
+// Auto-learn matrix-key mapping: any fresh physical-key press is recorded
+// into the next empty cell. Re-press an already-mapped key to flash it.
+// Tap a cell to clear it; the next press is then captured at that slot.
 
 import QtQuick 2.12
 
@@ -15,246 +15,251 @@ Rectangle {
     id: root
     width: 1280
     height: 800
+    color: "#f3f4f6"
 
-    gradient: Gradient {
-        GradientStop { position: 0.0; color: "#0a1126" }
-        GradientStop { position: 1.0; color: "#050813" }
-    }
-
+    // ───── Palette ─────────────────────────────────────────────────
     QtObject {
         id: pal
-        readonly property color panel:    "#172033"
-        readonly property color panelHi:  "#1f2a42"
-        readonly property color border:   "#2c3a55"
-        readonly property color text:     "#E8EEF7"
-        readonly property color muted:    "#7e8ba6"
-        readonly property color accent:   "#7CFC00"
-        readonly property color amber:    "#FFD700"
-        readonly property color red:      "#ff4d4d"
-        readonly property color green:    "#4dff77"
-        readonly property color blue:     "#3DA9FC"
-        readonly property color violet:   "#9D6BFF"
+        readonly property color bg:        "#f3f4f6"
+        readonly property color text:      "#111827"
+        readonly property color textSub:   "#4b5563"
+        readonly property color textMuted: "#9ca3af"
+        readonly property color border:    "#d1d5db"
+        readonly property color borderHi:  "#9ca3af"
+        readonly property color cardBg:    "#ffffff"
+        readonly property color titleBg:   "#f3f4f6"
+        readonly property color accent:    "#2563eb"
+        readonly property color success:   "#16a34a"
+        readonly property color warning:   "#d97706"
+        readonly property color danger:    "#dc2626"
     }
 
-    // ─── Header ──────────────────────────────────────────────────────
+    // ───── Header ──────────────────────────────────────────────────
     Rectangle {
         id: header
-        anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
-        height: 56
-        gradient: Gradient {
-            orientation: Gradient.Vertical
-            GradientStop { position: 0.0; color: "#1c2942" }
-            GradientStop { position: 1.0; color: "#0d1424" }
-        }
-
-        Rectangle { // bottom accent line
-            anchors.left: parent.left; anchors.right: parent.right
-            anchors.bottom: parent.bottom
-            height: 2
-            gradient: Gradient {
-                orientation: Gradient.Horizontal
-                GradientStop { position: 0.0; color: pal.accent }
-                GradientStop { position: 1.0; color: pal.violet }
-            }
-        }
+        x: 0; y: 0
+        width: parent.width; height: 70
+        color: "#ffffff"
 
         Column {
             anchors.left: parent.left; anchors.leftMargin: 18
             anchors.verticalCenter: parent.verticalCenter
-            spacing: 2
+            spacing: 3
             Text {
-                text: "SMB-Q6R Teach Pendant Hardware Mapping"
-                font.pixelSize: 20; font.bold: true; color: pal.accent
+                text: "SMB-Q6R  Teach Pendant Hardware Mapping"
+                font.pixelSize: 22; font.bold: true; color: pal.text
             }
             Text {
-                text: "Device: MAT-QT-TP-PC10C-Q6-UBT-L1"
-                font.pixelSize: 11; font.family: "monospace"; color: pal.muted
+                text: "Device Code:  MAT-QT-TP-PC10C-Q6-UBT-L1"
+                font.pixelSize: 12; font.family: "monospace"; color: pal.textSub
             }
         }
-
-        // Status indicators (top-right)
+        // Right-side status indicators
         Row {
             anchors.right: parent.right; anchors.rightMargin: 18
             anchors.verticalCenter: parent.verticalCenter
-            spacing: 14
+            spacing: 18
             Repeater {
                 model: [
-                    { name: "LED",   ok: diag.ledReady       },
-                    { name: "SWT",   ok: diag.switchReady    },
-                    { name: "BUZ",   ok: diag.buzzerReady    },
-                    { name: "BL",    ok: diag.backlightReady },
-                    { name: "KEYS",  ok: diag.keysReady      }
+                    { name: "LED",  ok: diag.ledReady       },
+                    { name: "SWT",  ok: diag.switchReady    },
+                    { name: "BUZ",  ok: diag.buzzerReady    },
+                    { name: "BL",   ok: diag.backlightReady },
+                    { name: "KEYS", ok: diag.keysReady      }
                 ]
                 Column {
-                    spacing: 2
+                    spacing: 3
                     Rectangle {
                         anchors.horizontalCenter: parent.horizontalCenter
-                        width: 12; height: 12; radius: 6
-                        color: modelData.ok ? pal.green : pal.muted
-                        Rectangle { // outer glow when ok
-                            visible: modelData.ok
-                            anchors.centerIn: parent
-                            width: 22; height: 22; radius: 11
-                            color: "transparent"
-                            border.color: pal.green; border.width: 1
-                            opacity: 0.4
-                        }
+                        width: 14; height: 14; radius: 7
+                        color: modelData.ok ? pal.success : pal.borderHi
+                        border.color: modelData.ok ? Qt.darker(pal.success, 1.3) : pal.border
+                        border.width: 1
                     }
                     Text {
-                        text: modelData.name; font.pixelSize: 9
-                        color: modelData.ok ? pal.green : pal.muted
+                        text: modelData.name
+                        font.pixelSize: 10; font.bold: true; font.letterSpacing: 0.5
+                        color: modelData.ok ? pal.success : pal.textMuted
                     }
                 }
             }
+        }
+        // Bottom accent line — ABB-style blue separator
+        Rectangle {
+            anchors.left: parent.left; anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            height: 3
+            color: pal.accent
         }
     }
 
-    // ─── LEFT PANEL ─────────────────────────────────────────────────
+    // ───── LEFT PANEL ──────────────────────────────────────────────
+    // Mode switch + deadman + buzzer/backlight + history
     Item {
         id: leftPanel
-        anchors.left: parent.left; anchors.leftMargin: 14
-        anchors.top: header.bottom; anchors.topMargin: 12
-        width: 720
-        anchors.bottom: parent.bottom; anchors.bottomMargin: 14
+        x: 12; y: header.height + 12
+        width: 514
+        height: root.height - header.height - 24
 
-        // — Mode Switch panel (top-left) —
+        // Mode switch
         Card {
             id: modeCard
-            anchors.left: parent.left
-            anchors.top: parent.top
-            width: parent.width / 2 - 8
-            height: 270
+            x: 0; y: 0
+            width: parent.width; height: 174
             title: "MODE SWITCH"
 
             Column {
-                anchors.top: parent.top; anchors.topMargin: 50
+                anchors.top: parent.top; anchors.topMargin: 44
                 anchors.horizontalCenter: parent.horizontalCenter
-                spacing: 12
+                spacing: 8
 
                 ModePill {
-                    name:  "AUTO"
-                    pillColor: pal.green
+                    name: "AUTO"
+                    activeColor: pal.success
                     active: root.modeText.toUpperCase() === "AUTO"
                 }
                 ModePill {
-                    name:  "MANUAL"
-                    pillColor: pal.amber
+                    name: "MANUAL"
+                    activeColor: pal.warning
                     active: root.modeText.toUpperCase() === "MANUAL"
                 }
-                ModePill {
-                    name:  "STOP"
-                    pillColor: pal.red
-                    active: root.modeText.toUpperCase() === "STOP"
-                }
             }
+            // STOP pill on the right, larger
+            ModePill {
+                anchors.right: parent.right; anchors.rightMargin: 14
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.verticalCenterOffset: 8
+                width: 200
+                name: "STOP"
+                activeColor: pal.danger
+                active: root.modeText.toUpperCase() === "STOP"
+            }
+            // Footer hint / raw byte
             Text {
-                anchors.bottom: parent.bottom; anchors.bottomMargin: 10
+                anchors.bottom: parent.bottom; anchors.bottomMargin: 8
                 anchors.horizontalCenter: parent.horizontalCenter
                 text: root.modeText === "—"
-                    ? "(anahtarı oynatın — algılama bekleniyor)"
-                    : "raw byte: " + root.modeByteText
+                    ? "↻  Anahtarı bir kez oynatın — sürücü yalnızca değişim algılar"
+                    : "raw byte:  " + root.modeByteText
                 font.pixelSize: 11; font.family: "monospace"
-                color: root.modeText === "—" ? pal.amber : pal.muted
+                color: root.modeText === "—" ? pal.warning : pal.textMuted
             }
         }
 
-        // — Enable Switch panel —
+        // Deadman switch
         Card {
-            id: enableCard
-            anchors.right: parent.right
-            anchors.top: parent.top
-            width: parent.width / 2 - 8
-            height: 270
-            title: "ENABLE SWITCH  (tutamak)"
+            id: deadmanCard
+            x: 0; y: modeCard.y + modeCard.height + 10
+            width: parent.width; height: 174
+            title: "DEADMAN SWITCH  (tutamak)"
 
             Column {
-                anchors.centerIn: parent
-                spacing: 10
+                anchors.top: parent.top; anchors.topMargin: 44
+                anchors.horizontalCenter: parent.horizontalCenter
+                spacing: 8
 
-                EnableStage { label: "RELEASED"; stageColor: pal.muted
-                               active: !root.enS1 && !root.enS2 }
-                EnableStage { label: "ACTIVE";   stageColor: pal.green
-                               active: root.enS1 && root.enS2 }
-                EnableStage { label: "PANIC";    stageColor: pal.red
-                               active: (root.enS1 && !root.enS2) || (!root.enS1 && root.enS2) }
+                DeadmanStage {
+                    label: "RELEASED"
+                    stageColor: pal.textMuted
+                    active: !root.enS1 && !root.enS2
+                }
+                DeadmanStage {
+                    label: "ACTIVE"
+                    stageColor: pal.success
+                    active: root.enS1 && root.enS2
+                }
+            }
+            DeadmanStage {
+                anchors.right: parent.right; anchors.rightMargin: 14
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.verticalCenterOffset: 8
+                width: 200
+                label: "PANIC"
+                stageColor: pal.danger
+                active: (root.enS1 !== root.enS2)
             }
             Row {
-                anchors.bottom: parent.bottom; anchors.bottomMargin: 10
+                anchors.bottom: parent.bottom; anchors.bottomMargin: 8
                 anchors.horizontalCenter: parent.horizontalCenter
-                spacing: 18
-                Text { text: "S1:" + (root.enS1?"1":"0"); font.pixelSize: 11; color: root.enS1?pal.amber:pal.muted; font.family: "monospace" }
-                Text { text: "S2:" + (root.enS2?"1":"0"); font.pixelSize: 11; color: root.enS2?pal.amber:pal.muted; font.family: "monospace" }
-                Text { text: "raw: " + root.enableByteText; font.pixelSize: 11; color: pal.muted; font.family: "monospace" }
+                spacing: 24
+                Text { text: "S1: " + (root.enS1 ? "1" : "0"); font.pixelSize: 11; font.family: "monospace"
+                       color: root.enS1 ? pal.warning : pal.textMuted }
+                Text { text: "S2: " + (root.enS2 ? "1" : "0"); font.pixelSize: 11; font.family: "monospace"
+                       color: root.enS2 ? pal.warning : pal.textMuted }
+                Text { text: "raw: " + root.enableByteText; font.pixelSize: 11; font.family: "monospace"
+                       color: pal.textMuted }
             }
         }
 
-        // — Buzzer + Backlight —
+        // Buzzer + Backlight
         Card {
             id: bbCard
-            anchors.left: parent.left; anchors.right: parent.right
-            anchors.top: modeCard.bottom; anchors.topMargin: 12
-            height: 130
+            x: 0; y: deadmanCard.y + deadmanCard.height + 10
+            width: parent.width; height: 134
             title: "BUZZER  ·  BACKLIGHT"
 
+            // Buzzer beep buttons + HOLD
             Row {
+                anchors.left: parent.left; anchors.leftMargin: 14
                 anchors.top: parent.top; anchors.topMargin: 44
-                anchors.left: parent.left; anchors.leftMargin: 20
-                spacing: 8
+                spacing: 6
                 Repeater {
                     model: [50, 200, 500, 1000]
                     PressButton {
+                        width: 70; height: 38
                         label: modelData + " ms"
-                        buttonColor: pal.blue
-                        width: 76; height: 38
+                        buttonColor: pal.accent
                         onClicked: diag.beep(modelData)
                     }
                 }
                 PressButton {
+                    width: 96; height: 38
                     label: root.buzzerHeld ? "HOLD ON" : "hold"
-                    buttonColor: root.buzzerHeld ? pal.red : "#3a4658"
-                    width: 90; height: 38
+                    buttonColor: root.buzzerHeld ? pal.danger : "#6b7280"
                     onClicked: {
                         root.buzzerHeld = !root.buzzerHeld
                         diag.holdBuzzer(root.buzzerHeld)
                     }
                 }
             }
-
-            // Backlight slider (bottom)
+            // Backlight slider
             Item {
-                anchors.left: parent.left; anchors.right: parent.right
-                anchors.leftMargin: 20; anchors.rightMargin: 20
+                anchors.left: parent.left; anchors.leftMargin: 14
+                anchors.right: parent.right; anchors.rightMargin: 14
                 anchors.bottom: parent.bottom; anchors.bottomMargin: 14
                 height: 30
 
                 Text {
                     id: blText
                     anchors.left: parent.left
-                    text: "Backlight: " + root.blValue
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "Backlight " + root.blValue
                     font.pixelSize: 12; color: pal.text
                 }
                 Rectangle {
                     id: blTrack
-                    anchors.left: blText.right; anchors.leftMargin: 14
+                    anchors.left: blText.right; anchors.leftMargin: 12
                     anchors.right: parent.right
                     anchors.verticalCenter: parent.verticalCenter
                     height: 8; radius: 4
-                    color: pal.panelHi
+                    color: "#e5e7eb"
+                    border.color: pal.border; border.width: 1
                     Rectangle {
                         anchors.left: parent.left
                         anchors.top: parent.top; anchors.bottom: parent.bottom
-                        width: parent.width * root.blValue / Math.max(1, diag.backlightMax)
-                        radius: 4
+                        anchors.margins: 1
+                        width: (parent.width - 2) * root.blValue / Math.max(1, diag.backlightMax)
+                        radius: 3
                         gradient: Gradient {
                             orientation: Gradient.Horizontal
-                            GradientStop { position: 0.0; color: "#8C5A00" }
-                            GradientStop { position: 1.0; color: pal.amber }
+                            GradientStop { position: 0.0; color: "#fde68a" }
+                            GradientStop { position: 1.0; color: "#f59e0b" }
                         }
                     }
                     Rectangle {
-                        width: 20; height: 20; radius: 10
+                        width: 18; height: 18; radius: 9
                         color: "#fffdf6"
-                        border.color: pal.amber; border.width: 2
+                        border.color: "#f59e0b"; border.width: 2
                         anchors.verticalCenter: parent.verticalCenter
                         x: Math.max(0, parent.width * root.blValue / Math.max(1, diag.backlightMax) - width / 2)
                     }
@@ -274,136 +279,137 @@ Rectangle {
             }
         }
 
-        // — Last key + history —
+        // History
         Card {
             id: histCard
-            anchors.left: parent.left; anchors.right: parent.right
-            anchors.top: bbCard.bottom; anchors.topMargin: 12
-            anchors.bottom: parent.bottom
+            x: 0; y: bbCard.y + bbCard.height + 10
+            width: parent.width
+            height: leftPanel.height - y
             title: "KEY HISTORY"
 
             Rectangle {
                 id: lastKeyBar
                 anchors.left: parent.left; anchors.right: parent.right
-                anchors.leftMargin: 14; anchors.rightMargin: 14
-                anchors.top: parent.top; anchors.topMargin: 38
+                anchors.leftMargin: 12; anchors.rightMargin: 12
+                anchors.top: parent.top; anchors.topMargin: 42
                 height: 44
-                radius: 8
-                color: diag.lastKeyPressed ? "#1a3f1a" : pal.panelHi
-                border.color: diag.lastKeyPressed ? pal.green : pal.border
+                radius: 6
+                color: diag.lastKeyPressed ? "#dcfce7" : "#f9fafb"
+                border.color: diag.lastKeyPressed ? pal.success : pal.border
                 border.width: 1
 
                 Rectangle {
-                    anchors.left: parent.left; anchors.leftMargin: 12
+                    anchors.left: parent.left; anchors.leftMargin: 14
                     anchors.verticalCenter: parent.verticalCenter
-                    width: 18; height: 18; radius: 9
-                    color: diag.lastKeyPressed ? pal.green : pal.border
+                    width: 14; height: 14; radius: 7
+                    color: diag.lastKeyPressed ? pal.success : pal.borderHi
                 }
                 Text {
-                    anchors.left: parent.left; anchors.leftMargin: 42
+                    anchors.left: parent.left; anchors.leftMargin: 40
                     anchors.verticalCenter: parent.verticalCenter
                     text: diag.lastKeyCode === 0
-                        ? "Last key: (henüz tuş yok — bir tuşa basın)"
-                        : "Last: " + diag.lastKeyName + "  code=" + diag.lastKeyCode +
+                        ? "Last key:  (henüz tuş yok — bir fiziksel butona basın)"
+                        : "Last:  " + diag.lastKeyName + "   code = " + diag.lastKeyCode +
                           "   " + (diag.lastKeyPressed ? "▼ PRESSED" : "▲ released")
-                    font.pixelSize: 14; font.bold: diag.lastKeyPressed
-                    font.family: "monospace"
-                    color: diag.lastKeyPressed ? pal.green : pal.text
+                    font.pixelSize: 13; font.family: "monospace"
+                    font.bold: diag.lastKeyPressed
+                    color: diag.lastKeyPressed ? "#166534" : pal.text
                 }
             }
-
             ListView {
                 anchors.left: parent.left; anchors.right: parent.right
-                anchors.leftMargin: 14; anchors.rightMargin: 14
-                anchors.top: lastKeyBar.bottom; anchors.topMargin: 8
-                anchors.bottom: parent.bottom; anchors.bottomMargin: 10
-                model: root.keyHistArr
+                anchors.top: lastKeyBar.bottom; anchors.bottom: parent.bottom
+                anchors.leftMargin: 12; anchors.rightMargin: 12
+                anchors.topMargin: 6; anchors.bottomMargin: 10
                 clip: true
                 spacing: 1
+                model: root.keyHistArr
                 delegate: Text {
                     text: modelData
-                    font.pixelSize: 11; font.family: "monospace"; color: pal.text
+                    font.pixelSize: 11; font.family: "monospace"
+                    color: pal.textSub
                 }
             }
         }
     }
 
-    // ─── RIGHT PANEL — pendant mirror ────────────────────────────────
+    // ───── RIGHT PANEL ─────────────────────────────────────────────
+    // Indicator LEDs + 2×7 matrix-key mirror
     Item {
         id: rightPanel
-        anchors.left: leftPanel.right; anchors.leftMargin: 14
-        anchors.right: parent.right; anchors.rightMargin: 14
-        anchors.top: header.bottom; anchors.topMargin: 12
-        anchors.bottom: parent.bottom; anchors.bottomMargin: 14
+        x: leftPanel.x + leftPanel.width + 12
+        y: header.height + 12
+        width: root.width - x - 12
+        height: root.height - header.height - 24
 
-        // LED bar — mirroring the top-of-pendant indicator strip
+        // LEDs
         Card {
-            id: ledBar
-            anchors.left: parent.left; anchors.right: parent.right
-            anchors.top: parent.top
-            height: 140
+            id: ledCard
+            x: 0; y: 0
+            width: parent.width; height: 130
             title: "INDICATOR LEDs"
 
             Row {
+                anchors.top: parent.top; anchors.topMargin: 38
+                anchors.bottom: parent.bottom; anchors.bottomMargin: 10
                 anchors.horizontalCenter: parent.horizontalCenter
-                anchors.bottom: parent.bottom; anchors.bottomMargin: 12
-                spacing: 12
+                spacing: 10
 
                 LedTile {
-                    label: "STOP";   sub: "port 0"; ledColor: pal.red
+                    width: 130; height: parent.height
+                    label: "STOP";   sub: "port 0"; ledColor: pal.danger
                     on: (root.ledShadow & 0x01) !== 0
                     onToggleRequested: diag.setLed(0, !on)
                 }
                 LedTile {
-                    label: "SERVO";  sub: "port 1"; ledColor: pal.green
+                    width: 130; height: parent.height
+                    label: "SERVO";  sub: "port 1"; ledColor: pal.success
                     on: (root.ledShadow & 0x02) !== 0
                     onToggleRequested: diag.setLed(1, !on)
                 }
                 LedTile {
-                    label: "ENABLE"; sub: "port 2"; ledColor: pal.green
+                    width: 130; height: parent.height
+                    label: "ENABLE"; sub: "port 2"; ledColor: pal.success
                     on: (root.ledShadow & 0x04) !== 0
                     onToggleRequested: diag.setLed(2, !on)
                 }
                 LedTile {
-                    label: "?";      sub: "port 3"; ledColor: pal.amber
+                    width: 130; height: parent.height
+                    label: "?";      sub: "port 3"; ledColor: pal.warning
                     on: (root.ledShadow & 0x08) !== 0
                     onToggleRequested: diag.setLed(3, !on)
                 }
-
-                Rectangle { // ALL OFF beside LEDs
-                    width: 84; height: 110; radius: 12
-                    anchors.verticalCenter: parent.verticalCenter
-                    color: aoMa.pressed ? "#5a1a1a" : "#3a1212"
-                    border.color: pal.red; border.width: 2
+                Rectangle {
+                    width: 90; height: parent.height; radius: 8
+                    color: aoMa.pressed ? "#fee2e2" : "#ffffff"
+                    border.color: pal.danger; border.width: 2
                     Text {
                         anchors.centerIn: parent
                         text: "ALL\nOFF"; horizontalAlignment: Text.AlignHCenter
-                        font.pixelSize: 14; font.bold: true; color: pal.red
+                        font.pixelSize: 14; font.bold: true; color: pal.danger
                     }
                     MouseArea { id: aoMa; anchors.fill: parent; onClicked: diag.allLedsOff() }
                 }
             }
         }
 
-        // Keypad — 2 cols × 7 rows mirroring the right side of the pendant
+        // Matrix keypad — 7 rows × 2 cols mirroring physical layout
         Card {
             id: keypadCard
-            anchors.left: parent.left; anchors.right: parent.right
-            anchors.top: ledBar.bottom; anchors.topMargin: 12
-            anchors.bottom: parent.bottom
-            title: "MATRIX KEYS  ·  basın (otomatik haritalanır)"
+            x: 0; y: ledCard.y + ledCard.height + 12
+            width: parent.width
+            height: rightPanel.height - y
+            title: "MATRIX KEYPAD  (otomatik haritalama)"
 
-            // Per-row layout: 7 rows top→bottom, each with [−] [+]
             Column {
-                anchors.left: parent.left; anchors.right: parent.right
-                anchors.leftMargin: 14; anchors.rightMargin: 14
-                anchors.top: parent.top; anchors.topMargin: 44
-                anchors.bottom: resetBar.top; anchors.bottomMargin: 10
-                spacing: 4
+                anchors.left: parent.left; anchors.leftMargin: 12
+                anchors.right: parent.right; anchors.rightMargin: 12
+                anchors.top: parent.top; anchors.topMargin: 42
+                anchors.bottom: footer.top; anchors.bottomMargin: 6
+                spacing: 5
 
                 Repeater {
                     model: 7
-
                     Item {
                         property int rowN: index
                         width: parent.width
@@ -411,11 +417,11 @@ Rectangle {
 
                         KeyCell {
                             anchors.left: parent.left
-                            width: parent.width / 2 - 4
+                            width: (parent.width - 8) / 2
                             height: parent.height
-                            cellIndex: rowN * 2          // left half of pair: "−"
+                            cellIndex: rowN * 2
                             sign: "−"
-                            rowLabel: "row " + (rowN + 1)
+                            axisLabel: "Axis " + (rowN + 1) + "  ·  J" + (rowN + 1) + "−"
                             code: root.keyMap[cellIndex] !== undefined ? root.keyMap[cellIndex] : -1
                             justPressed: code >= 0 && diag.lastKeyPressed && diag.lastKeyCode === code
                             selected: root.selectedCell === cellIndex
@@ -423,42 +429,43 @@ Rectangle {
                         }
                         KeyCell {
                             anchors.right: parent.right
-                            width: parent.width / 2 - 4
+                            width: (parent.width - 8) / 2
                             height: parent.height
-                            cellIndex: rowN * 2 + 1      // right half: "+"
+                            cellIndex: rowN * 2 + 1
                             sign: "+"
-                            rowLabel: "row " + (rowN + 1)
+                            axisLabel: "Axis " + (rowN + 1) + "  ·  J" + (rowN + 1) + "+"
                             code: root.keyMap[cellIndex] !== undefined ? root.keyMap[cellIndex] : -1
                             justPressed: code >= 0 && diag.lastKeyPressed && diag.lastKeyCode === code
                             selected: root.selectedCell === cellIndex
                             onTapped: root.tapCell(cellIndex)
                         }
+
+                        // Cell index property exists via Repeater
+                        property int cellIndex: 0
                     }
                 }
             }
 
-            // Reset / counter footer
             Item {
-                id: resetBar
+                id: footer
                 anchors.left: parent.left; anchors.right: parent.right
                 anchors.bottom: parent.bottom
-                anchors.leftMargin: 14; anchors.rightMargin: 14
-                height: 30
-
+                anchors.leftMargin: 12; anchors.rightMargin: 12
+                height: 32
                 Text {
                     anchors.left: parent.left
                     anchors.verticalCenter: parent.verticalCenter
-                    text: "Mapped: " + root.mappedCount + " / 14   " +
-                          (root.mappedCount < 14 ? "(auto-learn aktif)" : "(haritalama tamam)")
-                    font.pixelSize: 11; color: pal.muted
+                    text: "Mapped:  " + root.mappedCount + " / 14   " +
+                          (root.mappedCount < 14 ? "(otomatik öğrenme aktif)" : "(haritalama tamam)")
+                    font.pixelSize: 11; color: pal.textSub
                 }
                 Rectangle {
                     anchors.right: parent.right
                     anchors.verticalCenter: parent.verticalCenter
-                    width: 90; height: 24; radius: 4
-                    color: resetMa.pressed ? "#3a2020" : "#241818"
+                    width: 90; height: 26; radius: 4
+                    color: resetMa.pressed ? "#fee2e2" : "#fafafa"
                     border.color: pal.border; border.width: 1
-                    Text { anchors.centerIn: parent; text: "reset map"; font.pixelSize: 11; color: pal.muted }
+                    Text { anchors.centerIn: parent; text: "reset map"; font.pixelSize: 11; color: pal.textSub }
                     MouseArea {
                         id: resetMa
                         anchors.fill: parent
@@ -474,7 +481,7 @@ Rectangle {
         }
     }
 
-    // ─── Reactive state ──────────────────────────────────────────────
+    // ───── Reactive state ──────────────────────────────────────────
     property int     ledShadow:      0
     property string  modeText:       "—"
     property string  modeByteText:   "--------"
@@ -487,7 +494,6 @@ Rectangle {
     property int     selectedCell:   -1
     property bool    buzzerHeld:     false
 
-    // Count of cells already mapped (-1 means unmapped).
     property int     mappedCount: {
         var c = 0
         for (var i = 0; i < keyMap.length; i++) if (keyMap[i] >= 0) c++
@@ -495,13 +501,9 @@ Rectangle {
     }
 
     function tapCell(idx) {
-        // Manual override: tap any cell to clear it. The next physical key
-        // press will be re-assigned to the first empty cell (cells fill
-        // left-to-right top-to-bottom). Re-tap to cancel selection.
         if (root.selectedCell === idx) {
             root.selectedCell = -1
         } else {
-            // Clear the tapped cell so it becomes the new "next-empty" slot.
             var copy = root.keyMap.slice()
             copy[idx] = -1
             root.keyMap = copy
@@ -521,8 +523,6 @@ Rectangle {
         }
         onBacklightChanged:  root.blValue = diag.backlight
         onKeyEvent: {
-            // Auto-learn: on a fresh (un-mapped) press, assign the code to
-            // the next empty cell (lowest index where keyMap[i] === -1).
             if (diag.lastKeyPressed) {
                 var code = diag.lastKeyCode
                 var copy = root.keyMap.slice()
@@ -554,5 +554,4 @@ Rectangle {
         root.blValue        = diag.backlight
         root.keyHistArr     = diag.keyHistory
     }
-
 }

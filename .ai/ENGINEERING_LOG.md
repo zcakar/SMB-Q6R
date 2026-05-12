@@ -4,55 +4,125 @@
 
 ---
 
-## 2026-05-11 — Faz 0 Başlangıç
+## 2026-05-12 — Phase 1 UI Rewrite + GitHub
 
-### Bulgular
+### Yapıldı
 
-- **SoC tespit edildi:** Lavichip HN00-09Q6 üzerindeki `rk805 pwrkey` ve
-  Mali GPU'su, SoC'un **Rockchip RK3568** olduğunu işaret ediyor. SDK
-  manualindeki TI Sitara AM335x bilgileri **eski model** içindi; yeni
-  HN00-09Q6 farklı.
+- **Light-theme UI rewrite:** Tüm QML dosyaları ABB FlexPendant / FANUC
+  iPendant estetiğine geçirildi (white card + light gray title bar + dark
+  text + ABB-blue accent line).
+- **Realistic key visuals:** `KeyCell.qml` — outer light plastic bezel
+  (gradient), inner dark key face (gradient), large white +/− glyph,
+  axis label, code readout. Tıklamak cell'i temizliyor, sonraki basış
+  oraya kaydolur.
+- **Deadman terminology:** "Enable Switch" → "Deadman Switch" (endüstri
+  standart adlandırma). C++ tarafı API (`enableS1/S2`) vendor driver
+  adlandırmasıyla uyumlu kalsın diye değişmedi; yalnız UI string'leri
+  değişti.
+- **Kiosk fullscreen sabit:** `FramelessWindowHint` kaldırıldı — XFCE
+  compositor'da override-redirect mode görünmez pencere üretiyordu.
+  Saf `showFullScreen()` + `raise()` + `requestActivate()` kararlı çözüm.
+- **GitHub remote:** `git@github.com:zcakar/SMB-Q6R.git` üzerine push.
+  Bilgisayardaki SSH key zcakar olarak authenticate ediyor.
 
-- **Kernel:** `5.10.209-rt89 PREEMPT_RT`. Bu real-time kernel teach pendant
-  için tasarlanmış — jog/safety thread'leri SCHED_FIFO priority alabilir.
+### Bulgular (Bugün doğrulanan)
 
-- **Qt platformu:** `xcb` (X11). Manual'ın bahsettiği `eglfs` ve `linuxfb`
-  yolları artık geçerli değil — modern XCB ile geliştireceğiz.
-
-- **OS:** Ubuntu 20.04.6 LTS, standart bir Linux dağıtımı. `apt`, `systemd`,
-  `netplan` mevcut. Bu, geliştirme akışını gemiştirir (özel BSP gerek yok).
-
-- **SSH kullanıcı:** Manual `root` / `1234` der; gerçekte cihazda
-  `Tronlong` / `<boş>`. Yeni imaj farklı kullanıcı standartı kullanıyor.
-  Tronlong ismi SoM/board üreticisi Shenzhen Tronlong'a referans
-  veriyor olabilir.
-
-- **Network interface:** Aviation konektör → adapter box → RJ45 yolu
-  `eth1` olarak gelir. `eth0/2/3` da tanımlı ama down. Yapılandırma
-  netplan kontrolünde; `/etc/systemd/network/eth1.network` ile çelişki
-  var (netplan kazanır).
-
-- **Serial port:** Manual `/dev/ttyS1` der; HN00-09Q6'da `/dev/ttyS2`.
-
-- **Mevcut uygulama:** `/userfs/app/lyx_appDemo` — fabrika demosu (41 KB
-  Qt Widgets uygulaması).
+- **`/dev/buttons` driver edge-only:** Open + select(1s) + blocking read(2s)
+  testleri yapıldı; freshly opened fd'de **state push yok**, yalnız
+  transition push'lar var. → UI'da "anahtarı bir kez oynatın" prompt'u
+  açılışta normal davranış.
+- **Mode bit swap doğrulandı:** Vendor manuali bit 3=Auto / bit 4=Manual
+  diyor; HN00-09Q6'da fiziksel "Auto" pozisyonu bit 4'ü set ediyor.
+  `SwitchMonitor` artık swapped yorumla.
+- **GLIBC_2.34 sembolu:** Host'un Noble 24.04 glibc 2.39'undan compile
+  edilince binary `__libc_start_main@GLIBC_2.34` çağrısı ekliyor; cihaz
+  glibc 2.31. Docker Focal-arm64 imajıyla build geçti.
+- **Vendor `lyx_appDemo`** sistem Qt 5.12.8'e link'lenmiş (vendor 5.15.10
+  ayrı yolda, `/etc/profile.d/qt_env.sh` source edilince devreye giriyor).
+  Bu yüzden bizim binary'leri sistem Qt 5.12.8'le çalıştırmak doğru tercih.
+- **`component` keyword Qt 5.12'de yok:** Inline component declaration
+  parse hatası verir; her component ayrı `.qml` dosyasına çıkarıldı.
+- **`model` Repeater scope'unda rezerve:** C++ context property `model`
+  adıyla expose edilince Repeater delegate body'lerinde shadow ediliyor;
+  property adını `diag` yaptık.
 
 ### Kararlar
 
-- **`.ai/` şablonu olarak CADNC örneği alındı** — modern, sade,
-  doğrudan teknik. SODOO daha kurumsal; bizim daha yakın.
-- **Dil çifti:** Kod İngilizce, kullanıcı iletişimi Türkçe (CADNC ile aynı).
-- **Native build (Yol A)** Faz 1 için seçildi; cross-compile Faz 2+'da
-  değerlendirilir.
-
-### Sorular (kullanıcıdan beklenenler)
-
-- Robotun fiziksel modeli/serisi (gerçek Fanuc mı, klon mu?)
-- PLC'nin IP'si ne olacak?
-- Pendant ↔ PLC arasındaki anahtarın internet'e bağlanması planı var mı?
-- Robotun kinematik parametre dokümanı mevcut mu?
-- E-Stop ve Enable Switch kabloları PLC'nin güvenlik girişine bağlandı mı?
+- **Light theme final:** Karanlık mod kullanılmayacak (operatör ortamında
+  vardiyalar günışığında).
+- **Vendor 5.15.10 kullanılmayacak:** ABI riski yüzünden sistem 5.12.8'de
+  kalıyoruz; ileride Qt 5.15-only feature gerekirse Docker imajını
+  Jammy'ye geçirmeyi değerlendiririz (glibc 2.35 ile yine cihazla
+  uyumsuz olabilir — alternatif yol vendor 5.15.10'a köprü kurmak).
+- **Auto-learn matrix mapping:** Fiziksel butona bas → kod sıradaki boş
+  cell'e otomatik yazılır. Tap-then-press paradigması kaldırıldı.
+- **Cihaza paket kurma yok:** UI yalnız `qml-module-qtquick2` kullanıyor.
 
 ---
 
-(Bu dosya her önemli karar ve sürpriz bulguda güncellenir.)
+## 2026-05-11 — Phase 0 + Phase 1 Iter A-E Drive
+
+### Yapıldı
+
+- `.ai/` doküman seti kuruldu (CADNC şablonu esinli)
+- Cihaza SSH + device map (15 input device, dpkg listesi)
+- Docker `smb-q6r-builder:focal-arm64` imajı build edildi (Qt 5.12.8,
+  glibc 2.31, crossbuild-essential-arm64, ninja, cmake)
+- HwIo singleton mimari: LedController, SwitchMonitor, BuzzerController,
+  BacklightController, MatrixKeysMonitor
+- Tüm 7 vendor `HWInterfaceDemo` Qt Widgets app'i bizim Docker pipeline'da
+  cross-compile edilip `/home/Tronlong/vendor-demos/` altına deploy edildi
+  (oracle / yan yana karşılaştırma için)
+- udev rule + plugdev grubuyla `/dev/{leds,buttons,buttonstop,pwm}` ve
+  `/dev/input/event*` Tronlong erişimine açıldı
+- LED port range 0..3 confirme edildi (port 4 → EINVAL)
+- Phase 1 testi tamamı tek ekranda: 4 LED tile, mode switch, deadman,
+  buzzer, backlight, matrix keys, history
+
+### Bulgular
+
+- **Cihaz:** Lavichip HN00-09Q6, device code **MAT-QT-TP-PC10C-Q6-UBT-L1**,
+  RK3568 + Ubuntu 20.04 + Linux 5.10.209-rt89 PREEMPT_RT, hostname
+  `langyuxin`
+- **SSH:** `Tronlong` / boş parola (not `root` / `1234` from old manual)
+- **Sudo:** NOPASSWD (`echo "" | sudo -S` çalışıyor)
+- **Vendor Qt 5.15.10:** `/usr/lib/qt-5.15.10/` yalnızca runtime, dev
+  headers yok, qmake yok
+- **Apache2** cihazda çalışıyor (port 80 default page)
+- **Telnet** açık (port 23)
+- **vendor demo HMI** (`demoV1.2.0`) **6 eksen robot için DEĞİL** —
+  enjeksiyon kalıp pick-and-place gantry için (action codes "X2 Fore",
+  "Mold Close", "CorePuller"). UI mimarisi referans, action sözlüğü kullanılamaz.
+- **Türkçe çeviri vendor'da var:** `turkey.qm` + 8 ini dosyası — format
+  alınabilir, içerik kalıp robot içeriyor
+
+### Sürpriz Sorunlar (Çözüldü)
+
+- Eski manual SDK Qt 5.12.9 + kernel 4.9 + TI Sitara AM335x içindi;
+  HN00-09Q6 farklı SoC (RK3568) ve daha yeni stack — manual genel olarak
+  yanıltıcı; hardware API'leri (/dev/*) doğru kalmış
+- `chmod +x` kabuk komut izinleri Claude Code session'da kararsız
+- Bash `pkill -f /path/...` SSH session'da kendi parent shell'ini
+  öldürüyor (pkill kendi cmdline'ında pattern arıyor) → `killall basename`
+
+### Kararlar
+
+- **Cross-compile Docker (Focal-arm64) seçildi** (native build cihazda
+  yapılamaz, Noble host glibc uyumsuz)
+- **Qt Widgets değil, QML** seçildi (kullanıcı tercihi); ama cihazın
+  qml-module setine sığacak şekilde sadece QtQuick 2 primitives
+- **Auto-learn key mapping** seçildi (tap-then-press değil)
+- **Vendor demolar oracle olarak** korunacak — `vendor-demos/` ağacı
+
+### Açık (henüz cevaplanmamış)
+
+- LED port → fiziksel LED (STOP/SERVO/ENABLE) haritalaması — kullanıcı
+  test edip söyleyecek
+- 14 matrix key code'larının fiziksel pozisyona haritalaması — auto-learn
+  ile fiziksel test sırasında yazılacak
+- Mode switch'in kullanıcı tarafından hangi pozisyonda olduğunun
+  ilk açılışta görünmesi — driver edge-only olduğu için sadece prompt
+  ile çözülebiliyor
+- Jog wheel (rotary, /dev/input/event1) için Iter F implementasyonu
+- System info widget (Iter G)
+- CNC DT550 RAR'ı çıkarma (host'a p7zip kurulması gerek)
