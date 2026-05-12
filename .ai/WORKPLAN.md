@@ -25,31 +25,45 @@ takım çalışmasının temelini atmak.
 
 ---
 
-## Faz 1 — Build Sistemi + "Hello Pendant"
+## Faz 1 — Build Sistemi + Donanım Diagnostiği
 
-**Amaç:** En basit Qt uygulamasını cihaza dağıtıp çalıştırmak.
-Tüm fiziksel donanımı (LED, buzzer, butonlar, enable, mode switch)
-tek bir test ekranında göstermek.
+**Amaç:** Cross-compile pipeline'ı tamamlamak ve cihazın tüm donanımını
+**vendor referans demosuyla karşılaştırmalı** doğrulamak. Phase 1 sonu
+itibarıyla bizim app fiziksel donanımı vendor'ın kendi demolarıyla 1:1
+aynı şekilde yönetebiliyor olmalı.
 
 **Yapılacaklar**
-- CMake iskeleti (`CMakeLists.txt`, `inc/`, `src/`, `ui/`)
-- `cmake/aarch64-toolchain.cmake` (cross için, opsiyonel)
-- `scripts/deploy.sh` (build + scp)
-- `HwIo` singleton:
-  - LED kontrolü (set / blink)
-  - Buzzer (kısa bip + sürekli)
-  - Enable Switch okuma (S1/S2 sinyali)
-  - Mode Switch okuma (Auto/Manual/Stop)
-  - Backlight (slider 0..100)
-- "DiagnosticsWindow" — tüm donanımı tek ekranda canlı göster
-- Fiziksel test logu: LED port haritası, enable switch davranışı,
-  mode switch debounce süresi → `ENGINEERING_LOG.md`'ye
+- ✅ Docker Focal-arm64 builder image
+- ✅ CMake + cmake/aarch64-linux-gnu.cmake toolchain
+- ✅ scripts/docker-build.sh + scripts/deploy.sh
+- ✅ HwIo singleton + LedController (Iteration A — smoke deployed)
+- ⏳ Vendor HWInterfaceDemo'larını CMake'e adapte et + cross-compile et
+  (`vendor-demos/` dizini) — `.ai/PHASE1_TEST_PLAN.md` §1'e göre
+- ⏳ Iter B: SwitchMonitor (Enable + Mode), vendor button/rotary ile karşılaştır
+- ⏳ Iter C: BuzzerController, vendor pwm ile karşılaştır
+- ⏳ Iter D: BacklightController, vendor backlight ile karşılaştır
+- ⏳ Iter E: Matrix keypad listener, vendor matrixKeys ile karşılaştır
+- ⏳ Iter F: Wheel handler, vendor wheel ile karşılaştır
+- ⏳ Iter G: SystemInfo widget
+- ⏳ Final UI: 7-tab TabBar (QtQuick 2 primitive'lerden elle yapılmış)
+- ⏳ Karşılaştırma matrisi (`PHASE1_TEST_PLAN.md` §2-3) ENGINEERING_LOG'a yazılır
 
-**Bitiş Kriteri**
-- Uygulama açılıyor, dokunmatik çalışıyor, her donanım girişi UI'da görünüyor,
-  LED ve buzzer butonla kontrol edilebiliyor.
+**Bitiş Kriteri (18 madde)**
+1. Cross-compile pipeline tekrarlanabilir
+2. App açılır, 7 sekme görünür, dokunmatik çalışır
+3-10. Her donanım için kendi uygulamamız bekleneni yapar
+11-17. **Karşılaştırma:** Her donanım için vendor demosuyla bizim app aynı
+       fiziksel sonucu üretir (LED port haritası, key code haritası,
+       switch byte deseni, vd. — `PHASE1_TEST_PLAN.md` §4)
+18. ENGINEERING_LOG.md'de "HN00-09Q6 #1 Phase 1 closeout" entry'sinde tüm
+    haritalamalar belgelenmiş
 
-**Tahmini Süre:** 2–3 hafta
+**Tahmini Süre:** 1.5–2 hafta (vendor karşılaştırma sayesinde keşif maliyeti azalır)
+
+**İlgili dokümanlar**
+- [`SDK_INVENTORY.md`](SDK_INVENTORY.md) — vendor kaynaklarının değer analizi
+- [`PHASE1_TEST_PLAN.md`](PHASE1_TEST_PLAN.md) — karşılaştırma matris ve adımlar
+- [`DEVICE_DEPLOY_NOTES.md`](DEVICE_DEPLOY_NOTES.md) — paket gereksinimleri
 
 ---
 

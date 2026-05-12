@@ -1,15 +1,15 @@
 // SMB-Q6R Teach Pendant — entry point.
 //
-// Phase 1: Diagnostics demo. The HN00-09Q6 system Qt 5.12.8 only ships
-// qml-module-qtquick2; QtQuick.Window / Controls / Layouts QML modules are
-// absent. We therefore drive a QQuickView directly from C++ (which provides
-// its own QWindow) and write every UI primitive against bare QtQuick 2.
+// Phase 1 / Iteration A: Diagnostics demo wired to the HwIo singleton.
+// Touch the LED buttons to drive /dev/leds; further peripherals are added
+// in subsequent iterations.
+
+#include "diagnostics_model.h"
 
 #include <QGuiApplication>
 #include <QQuickView>
 #include <QQmlContext>
 #include <QQmlError>
-#include <QSurfaceFormat>
 #include <QDebug>
 
 int main(int argc, char* argv[])
@@ -23,10 +23,13 @@ int main(int argc, char* argv[])
             << "on Qt" << qVersion()
             << "/" << QGuiApplication::platformName();
 
+    smbq6r::DiagnosticsModel model;
+
     QQuickView view;
     view.setTitle(QStringLiteral("SMB-Q6R Diagnostics"));
     view.setResizeMode(QQuickView::SizeRootObjectToView);
     view.resize(1280, 800);
+    view.rootContext()->setContextProperty(QStringLiteral("model"), &model);
     view.setSource(QUrl(QStringLiteral("qrc:/qml/Main.qml")));
 
     if (view.status() == QQuickView::Error) {

@@ -39,11 +39,13 @@ find_package(Qt5 5.12 REQUIRED COMPONENTS Core Qml Quick Gui)
 # ---------- Sources ----------
 set(SMB_Q6R_SOURCES
     src/main.cpp
+    src/hwio.cpp
+    src/led_controller.cpp
+    src/diagnostics_model.cpp
 )
 
-# Phase 1 will add: hwio.cpp, led_controller.cpp, buzzer_controller.cpp,
-# switch_monitor.cpp, backlight_controller.cpp, system_info.cpp,
-# diagnostics_model.cpp.
+# Phase 1 (iter B+) will add: buzzer_controller.cpp, switch_monitor.cpp,
+# backlight_controller.cpp, system_info.cpp.
 
 set(SMB_Q6R_RESOURCES
     qml/qml.qrc
