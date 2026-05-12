@@ -155,6 +155,9 @@ Rectangle {
                 anchors.horizontalCenter: parent.horizontalCenter
                 spacing: 6
 
+                // HN00-09Q6 confirmed (2026-05-12): normal grip closes S1 only
+                // (raw 10000000). RELEASED=no contacts; ACTIVE=one contact;
+                // PANIC=both contacts (assumed for a hard press, untested).
                 DeadmanStage {
                     width: 280; height: 42
                     label: "RELEASED"
@@ -165,14 +168,13 @@ Rectangle {
                     width: 280; height: 42
                     label: "ACTIVE"
                     stageColor: pal.success
-                    active: root.enS1 && root.enS2
+                    active: (root.enS1 || root.enS2) && !(root.enS1 && root.enS2)
                 }
                 DeadmanStage {
                     width: 280; height: 42
                     label: "PANIC"
                     stageColor: pal.danger
-                    // half-state (only one contact closed) = transitional/panic
-                    active: (root.enS1 !== root.enS2)
+                    active: root.enS1 && root.enS2
                 }
             }
             Row {
@@ -401,7 +403,7 @@ Rectangle {
             x: 0; y: ledCard.y + ledCard.height + 12
             width: parent.width
             height: rightPanel.height - y
-            title: "MATRIX KEYPAD  (otomatik haritalama)"
+            title: "MATRIX KEYPAD  (sarı vurgulanan butona bas)"
 
             Column {
                 anchors.left: parent.left; anchors.leftMargin: 12
@@ -454,9 +456,18 @@ Rectangle {
                 Text {
                     anchors.left: parent.left
                     anchors.verticalCenter: parent.verticalCenter
-                    text: "Mapped:  " + root.mappedCount + " / 14   " +
-                          (root.mappedCount < 14 ? "(otomatik öğrenme aktif)" : "(haritalama tamam)")
-                    font.pixelSize: 11; color: pal.textSub
+                    text: {
+                        if (root.mappedCount === 14)
+                            return "Mapped:  14 / 14   (tamam — bir tuşa bas, eşleşmesi yeşil yanar)"
+                        var s = root.selectedCell
+                        var lbl = s < 7
+                            ? "J" + (s + 1) + " −"
+                            : "J" + (s - 6) + " +"
+                        return "Mapped:  " + root.mappedCount + " / 14   " +
+                               "→ şimdi bas:  " + lbl
+                    }
+                    font.pixelSize: 12; font.bold: root.mappedCount < 14
+                    color: root.mappedCount < 14 ? pal.accent : pal.success
                 }
                 Rectangle {
                     anchors.right: parent.right
@@ -472,7 +483,7 @@ Rectangle {
                             var fresh = []
                             for (var i = 0; i < 14; i++) fresh.push(-1)
                             root.keyMap = fresh
-                            root.selectedCell = -1
+                            root.selectedCell = 0     // start guided learn from cell 0
                         }
                     }
                 }
@@ -490,7 +501,10 @@ Rectangle {
     property int     blValue:        50
     property var     keyHistArr:     []
     property var     keyMap:         [-1,-1,-1,-1,-1,-1,-1, -1,-1,-1,-1,-1,-1,-1]
-    property int     selectedCell:   -1
+    // Guided learn: the currently selected cell is the slot that will receive
+    // the next physical key press. App starts at cell 0 (J1−), advances to
+    // the next empty cell after every assignment. Tap any cell to reposition.
+    property int     selectedCell:   0
     property bool    buzzerHeld:     false
 
     property int     mappedCount: {
@@ -499,15 +513,21 @@ Rectangle {
         return c
     }
 
+    // Tap a cell to make it the "next-to-fill" slot. Clears any existing
+    // code in that cell so the next key press is captured there.
     function tapCell(idx) {
-        if (root.selectedCell === idx) {
-            root.selectedCell = -1
-        } else {
-            var copy = root.keyMap.slice()
-            copy[idx] = -1
-            root.keyMap = copy
-            root.selectedCell = idx
-        }
+        var copy = root.keyMap.slice()
+        copy[idx] = -1
+        root.keyMap = copy
+        root.selectedCell = idx
+    }
+
+    // Find the next empty cell index starting after `from`, wrapping at 14.
+    // Returns -1 if every cell is mapped.
+    function nextEmptyCell(from) {
+        for (var i = from + 1; i < 14; i++) if (root.keyMap[i] === -1) return i
+        for (var j = 0; j <= from; j++)     if (root.keyMap[j] === -1) return j
+        return -1
     }
 
     Connections {
@@ -522,22 +542,17 @@ Rectangle {
         }
         onBacklightChanged:  root.blValue = diag.backlight
         onKeyEvent: {
-            if (diag.lastKeyPressed) {
+            // Guided learn: write the just-pressed code into the currently
+            // selected cell (the one the user is being asked to press now),
+            // then advance the selection to the next empty cell. This makes
+            // the mapping unambiguous — whatever the user pressed lands in
+            // exactly the cell the UI was asking them to press.
+            if (diag.lastKeyPressed && root.selectedCell >= 0 && root.selectedCell < 14) {
                 var code = diag.lastKeyCode
                 var copy = root.keyMap.slice()
-                var alreadyMapped = false
-                for (var i = 0; i < copy.length; i++) {
-                    if (copy[i] === code) { alreadyMapped = true; break }
-                }
-                if (!alreadyMapped) {
-                    for (var j = 0; j < copy.length; j++) {
-                        if (copy[j] === -1) {
-                            copy[j] = code
-                            root.keyMap = copy
-                            break
-                        }
-                    }
-                }
+                copy[root.selectedCell] = code
+                root.keyMap = copy
+                root.selectedCell = root.nextEmptyCell(root.selectedCell)
             }
             root.keyHistArr = diag.keyHistory
         }
