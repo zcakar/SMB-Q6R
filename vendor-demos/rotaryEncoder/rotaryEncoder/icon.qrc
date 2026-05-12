@@ -1,0 +1,9 @@
+<RCC>
+    <qresource prefix="/">
+        <file>icon/knob_center.png</file>
+        <file>icon/knob_left.png</file>
+        <file>icon/knob_right.png</file>
+        <file>icon/knob_error.png</file>
+        <file>icon/logo.png</file>
+    </qresource>
+</RCC>

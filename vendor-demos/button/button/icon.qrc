@@ -1,0 +1,8 @@
+<RCC>
+    <qresource prefix="/">
+        <file>icon/button_close.png</file>
+        <file>icon/button_error.png</file>
+        <file>icon/button_open.png</file>
+        <file>icon/logo.png</file>
+    </qresource>
+</RCC>

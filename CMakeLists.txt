@@ -66,6 +66,14 @@ target_link_libraries(smb_q6r
 
 target_include_directories(smb_q6r PRIVATE src)
 
+# ---------- Vendor reference demos (optional) ----------
+# Build the seven vendor HWInterfaceDemo apps as side-by-side oracles. See
+# vendor-demos/CMakeLists.txt and .ai/PHASE1_TEST_PLAN.md.
+option(SMB_Q6R_BUILD_VENDOR_DEMOS "Cross-compile vendor HWInterfaceDemo apps" ON)
+if(SMB_Q6R_BUILD_VENDOR_DEMOS AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/vendor-demos/CMakeLists.txt")
+    add_subdirectory(vendor-demos)
+endif()
+
 # ---------- Install ----------
 install(TARGETS smb_q6r RUNTIME DESTINATION bin)
 
