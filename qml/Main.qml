@@ -155,38 +155,43 @@ Rectangle {
                 anchors.horizontalCenter: parent.horizontalCenter
                 spacing: 6
 
-                // HN00-09Q6 confirmed (2026-05-12): normal grip closes S1 only
-                // (raw 10000000). RELEASED=no contacts; ACTIVE=one contact;
-                // PANIC=both contacts (assumed for a hard press, untested).
+                // HN00-09Q6 confirmed 2026-05-12: datasheet promises a 3-stage
+                // (Released/Active/Panic) deadman, but the kernel driver only
+                // exposes a 2-state signal via /dev/buttonstop — no matter how
+                // hard the operator squeezes, S2 never closes. UI shows the
+                // two reachable states only.
                 DeadmanStage {
-                    width: 280; height: 42
+                    width: 280; height: 58
                     label: "RELEASED"
                     stageColor: pal.textMuted
                     active: !root.enS1 && !root.enS2
                 }
                 DeadmanStage {
-                    width: 280; height: 42
+                    width: 280; height: 58
                     label: "ACTIVE"
                     stageColor: pal.success
-                    active: (root.enS1 || root.enS2) && !(root.enS1 && root.enS2)
-                }
-                DeadmanStage {
-                    width: 280; height: 42
-                    label: "PANIC"
-                    stageColor: pal.danger
-                    active: root.enS1 && root.enS2
+                    active: root.enS1 || root.enS2
                 }
             }
-            Row {
-                anchors.bottom: parent.bottom; anchors.bottomMargin: 8
+            Column {
+                anchors.bottom: parent.bottom; anchors.bottomMargin: 6
                 anchors.horizontalCenter: parent.horizontalCenter
-                spacing: 18
-                Text { text: "S1: " + (root.enS1 ? "1" : "0"); font.pixelSize: 11; font.family: "monospace"
-                       color: root.enS1 ? pal.warning : pal.textMuted }
-                Text { text: "S2: " + (root.enS2 ? "1" : "0"); font.pixelSize: 11; font.family: "monospace"
-                       color: root.enS2 ? pal.warning : pal.textMuted }
-                Text { text: "raw: " + root.enableByteText; font.pixelSize: 11; font.family: "monospace"
-                       color: pal.textMuted }
+                spacing: 2
+                Row {
+                    spacing: 18
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    Text { text: "S1: " + (root.enS1 ? "1" : "0"); font.pixelSize: 11; font.family: "monospace"
+                           color: root.enS1 ? pal.warning : pal.textMuted }
+                    Text { text: "S2: " + (root.enS2 ? "1" : "0"); font.pixelSize: 11; font.family: "monospace"
+                           color: root.enS2 ? pal.warning : pal.textMuted }
+                    Text { text: "raw: " + root.enableByteText; font.pixelSize: 11; font.family: "monospace"
+                           color: pal.textMuted }
+                }
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: "(Bu donanımda panic state sürücü tarafından üretilmiyor)"
+                    font.pixelSize: 10; color: pal.textMuted
+                }
             }
         }
 
@@ -484,6 +489,7 @@ Rectangle {
                             for (var i = 0; i < 14; i++) fresh.push(-1)
                             root.keyMap = fresh
                             root.selectedCell = 0     // start guided learn from cell 0
+                            diag.clearKeyMap()        // remove the saved file too
                         }
                     }
                 }
@@ -520,6 +526,7 @@ Rectangle {
         copy[idx] = -1
         root.keyMap = copy
         root.selectedCell = idx
+        diag.saveKeyMap(copy)
     }
 
     // Find the next empty cell index starting after `from`, wrapping at 14.
@@ -553,6 +560,7 @@ Rectangle {
                 copy[root.selectedCell] = code
                 root.keyMap = copy
                 root.selectedCell = root.nextEmptyCell(root.selectedCell)
+                diag.saveKeyMap(copy)   // persist after every press
             }
             root.keyHistArr = diag.keyHistory
         }
@@ -567,5 +575,18 @@ Rectangle {
         root.enableByteText = diag.enableByte
         root.blValue        = diag.backlight
         root.keyHistArr     = diag.keyHistory
+
+        // Load any previously saved matrix-key mapping from
+        // ~/.smb-q6r/keymap.dat (empty file → all -1). Set selectedCell to
+        // the first unmapped slot so guided learn picks up where it stopped.
+        var saved = diag.loadKeyMap()
+        if (saved && saved.length === 14) {
+            root.keyMap = saved
+        }
+        var firstEmpty = -1
+        for (var i = 0; i < 14; i++) {
+            if (root.keyMap[i] === -1) { firstEmpty = i; break }
+        }
+        root.selectedCell = firstEmpty   // -1 ⇒ everything mapped
     }
 }

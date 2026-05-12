@@ -46,6 +46,7 @@ set(SMB_Q6R_SOURCES
     src/backlight_controller.cpp
     src/matrix_keys_monitor.cpp
     src/diagnostics_model.cpp
+    src/key_map_store.cpp
 )
 
 set(SMB_Q6R_RESOURCES

@@ -6,6 +6,9 @@
 #include "buzzer_controller.h"
 #include "backlight_controller.h"
 #include "matrix_keys_monitor.h"
+#include "key_map_store.h"
+
+#include <QVector>
 
 namespace smbq6r {
 
@@ -71,5 +74,27 @@ void DiagnosticsModel::setBacklight(int v)
 
 void DiagnosticsModel::beep(int ms)         { HwIo::instance().buzzer().beep(ms); }
 void DiagnosticsModel::holdBuzzer(bool on)  { HwIo::instance().buzzer().setHold(on); }
+
+QVariantList DiagnosticsModel::loadKeyMap()
+{
+    const QVector<int> data = KeyMapStore::load();
+    QVariantList out;
+    out.reserve(data.size());
+    for (int v : data) out.append(v);
+    return out;
+}
+
+void DiagnosticsModel::saveKeyMap(const QVariantList& codes)
+{
+    QVector<int> v;
+    v.reserve(codes.size());
+    for (const QVariant& x : codes) v.append(x.toInt());
+    KeyMapStore::save(v);
+}
+
+void DiagnosticsModel::clearKeyMap()
+{
+    KeyMapStore::clear();
+}
 
 } // namespace smbq6r

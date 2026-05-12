@@ -4,6 +4,49 @@
 
 ---
 
+## 2026-05-12 (sonu) — Phase 1 Closeout: Persistence + 2-state Deadman
+
+### Yapıldı
+
+- **Persistent key map** eklendi: `src/key_map_store.{h,cpp}`,
+  `DiagnosticsModel::{loadKeyMap, saveKeyMap, clearKeyMap}`. Cihazda
+  `~/.smb-q6r/keymap.dat` (her satırda bir kod, -1 = boş, atomic write
+  via .tmp + rename). Her tuş basışından sonra otomatik kaydedilir,
+  açılışta yüklenir. Reset map butonu dosyayı da siler.
+- **Pre-seed:** Kullanıcının 7 mapped key'i (fotoğraf 1'den okundu)
+  cihaza önceden yazıldı; yeni binary açılışta okur ve kullanıcı kaldığı
+  yerden devam eder.
+- **Guided learn**: auto-learn'ün karışıklığı (kullanıcı J2+ basıyor,
+  cell J4+ vuruluyor) çözüldü. Sarı vurgulu cell hangi butona basılacak
+  diyor; basılınca o cell'e yazıyor, sonraki boş cell'e geçiyor.
+- **Deadman 2-state**: Kullanıcı testi — sert basınca bile S2 kapanmıyor.
+  Datasheet 3-stage der ama driver yalnız 2 durumu üretir.
+  - !S1 && !S2 → RELEASED
+  - S1 || S2  → ACTIVE
+  - PANIC stage UI'dan çıkarıldı; küçük notta "Bu donanımda panic
+    sürücü tarafından üretilmiyor" diyor.
+
+### Phase 1 Kapsam (Tamam)
+
+- ✅ 5 hwio subsystem (LED, switch, buzzer, backlight, matrix keys)
+- ✅ Light-theme UI (ABB FlexPendant esinli)
+- ✅ Realistic matrix key tasarımı (bezel + dark face)
+- ✅ Persistent key map (~/.smb-q6r/keymap.dat)
+- ✅ Cross-compile Docker pipeline
+- ✅ udev permission setup
+- ✅ Vendor demoları yan yana referans olarak deploy edildi
+- ✅ GitHub: zcakar/SMB-Q6R, ~25 commit
+- ✅ `.ai/` doküman seti (PHASE1_STATUS.md, ENGINEERING_LOG.md,
+     DEVICE_RUNTIME.md, WORKPLAN.md, vd. güncel)
+
+### Henüz Yapılmadı (Phase 1 Closeout Sonrası)
+
+- Iter F — Jog wheel handler (/dev/input/event1)
+- Iter G — System info widget
+- CNC DT550 RAR çıkar (Phase 2 hazırlık; `apt install p7zip-full` host'ta lazım)
+
+---
+
 ## 2026-05-12 — Phase 1 UI Rewrite + GitHub
 
 ### HN00-09Q6 LED Haritalama — DOĞRULANMIŞ

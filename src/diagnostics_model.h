@@ -3,6 +3,7 @@
 #include <QObject>
 #include <QString>
 #include <QStringList>
+#include <QVariantList>
 
 namespace smbq6r {
 
@@ -77,6 +78,13 @@ public slots:
     void allLedsOff();
     void beep(int ms);
     void holdBuzzer(bool on);
+
+    // Persistent 14-cell matrix-keypad mapping (KeyMapStore on disk).
+    // QML calls loadKeyMap() at startup and saveKeyMap(...) after every
+    // change. clearKeyMap() removes the stored file (used by "reset map").
+    QVariantList loadKeyMap();
+    void         saveKeyMap(const QVariantList& codes);
+    void         clearKeyMap();
 
 signals:
     void ledChanged();
