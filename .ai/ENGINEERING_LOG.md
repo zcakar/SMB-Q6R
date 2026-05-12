@@ -6,6 +6,32 @@
 
 ## 2026-05-12 — Phase 1 UI Rewrite + GitHub
 
+### HN00-09Q6 LED Haritalama — DOĞRULANMIŞ
+
+Fiziksel test (kullanıcı 2026-05-12):
+
+| Port | Fiziksel LED  | Renk    |
+|------|---------------|---------|
+| 0    | **ENABLE**    | Yeşil   |
+| 1    | **SERVO**     | Yeşil   |
+| 2    | **STOP**      | Kırmızı |
+| 3    | (yok)         | —       |
+| 4    | EINVAL        | (driver reddediyor) |
+
+Datasheet'in "From left to right: Stop (Red), Servo (Green), Enable
+(Green)" sıralaması fiziksel paneldedir; **port numarası ile fiziksel
+soldan-sağa sıra ters**. `LedController::set(port, on)` çağrılarında
+yukarıdaki tablo bağlayıcıdır.
+
+### Deadman Switch Bit Haritalama — DOĞRULANMIŞ
+
+Vendor docs: `bit 6 = S2, bit 7 = S1` (right-most chars).
+Gerçek: `buf[0] = S1, buf[1] = S2` (left-most chars). Vendor'ın kendi
+button.cpp'si de buf[0] ve buf[1]'i okuyor. Pressing the deadman flips
+raw byte from `00000000` → `10000000`.
+
+
+
 ### Yapıldı
 
 - **Light-theme UI rewrite:** Tüm QML dosyaları ABB FlexPendant / FANUC
