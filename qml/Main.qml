@@ -78,10 +78,18 @@ Rectangle {
             // Three named LEDs (STOP / SERVO / ENABLE) — assumed mapping
             // (left-to-right per HN00-09Q6 datasheet §2.1.1). Spare port 3
             // shown separately in case the assumption is wrong.
-            LedTile { label: "STOP";   sub: "port 0"; ledPort: 0; ledColor: theme.red }
-            LedTile { label: "SERVO";  sub: "port 1"; ledPort: 1; ledColor: theme.green }
-            LedTile { label: "ENABLE"; sub: "port 2"; ledPort: 2; ledColor: theme.green }
-            LedTile { label: "?";      sub: "port 3"; ledPort: 3; ledColor: theme.amber }
+            LedTile { label: "STOP";   sub: "port 0"; ledPort: 0; ledColor: theme.red
+                       on: (root.ledShadow & 0x01) !== 0
+                       onToggleRequested: model.setLed(0, !on) }
+            LedTile { label: "SERVO";  sub: "port 1"; ledPort: 1; ledColor: theme.green
+                       on: (root.ledShadow & 0x02) !== 0
+                       onToggleRequested: model.setLed(1, !on) }
+            LedTile { label: "ENABLE"; sub: "port 2"; ledPort: 2; ledColor: theme.green
+                       on: (root.ledShadow & 0x04) !== 0
+                       onToggleRequested: model.setLed(2, !on) }
+            LedTile { label: "?";      sub: "port 3"; ledPort: 3; ledColor: theme.amber
+                       on: (root.ledShadow & 0x08) !== 0
+                       onToggleRequested: model.setLed(3, !on) }
 
             // ALL OFF button column
             Item {
@@ -475,48 +483,6 @@ Rectangle {
                 font.pixelSize: 11; font.family: "monospace"
                 color: theme.text
             }
-        }
-    }
-
-    // ---------- Inline LedTile component definition ----------
-    component LedTile : Rectangle {
-        property string label: ""
-        property string sub:   ""
-        property int    ledPort: 0
-        property color  ledColor: theme.green
-        property bool   on: (root.ledShadow & (1 << ledPort)) !== 0
-
-        width: 130; height: 150; radius: 12
-        color: on ? Qt.darker(ledColor, 2.0) : theme.panel
-        border.color: on ? ledColor : theme.border
-        border.width: 2
-
-        Text {
-            anchors.horizontalCenter: parent.horizontalCenter
-            anchors.top: parent.top; anchors.topMargin: 8
-            text: parent.label
-            font.pixelSize: 16; font.bold: true
-            color: parent.on ? parent.ledColor : theme.text
-        }
-        Rectangle {
-            anchors.horizontalCenter: parent.horizontalCenter
-            anchors.verticalCenter: parent.verticalCenter
-            anchors.verticalCenterOffset: 4
-            width: 56; height: 56; radius: 28
-            color: parent.on ? parent.ledColor : "#1a2236"
-            border.color: parent.on ? Qt.lighter(parent.ledColor, 1.4) : theme.border
-            border.width: 3
-        }
-        Text {
-            anchors.horizontalCenter: parent.horizontalCenter
-            anchors.bottom: parent.bottom; anchors.bottomMargin: 6
-            text: parent.sub + "  " + (parent.on ? "ON" : "OFF")
-            font.pixelSize: 11
-            color: parent.on ? parent.ledColor : theme.textMuted
-        }
-        MouseArea {
-            anchors.fill: parent
-            onClicked: model.setLed(parent.ledPort, !parent.on)
         }
     }
 

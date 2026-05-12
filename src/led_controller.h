@@ -16,8 +16,10 @@ namespace smbq6r {
 class LedController
 {
 public:
-    static constexpr int kMaxPort = 4;       // ports 0..4 (5 LEDs max)
-    static constexpr int kPortCount = 5;
+    // HN00-09Q6 exposes 4 LED ports (0..3). Port 4 returns EINVAL from
+    // the driver and is therefore excluded from iteration.
+    static constexpr int kMaxPort = 3;
+    static constexpr int kPortCount = 4;
 
     LedController();
     ~LedController();

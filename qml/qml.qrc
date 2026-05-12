@@ -1,5 +1,6 @@
 <RCC>
     <qresource prefix="/qml">
         <file>Main.qml</file>
+        <file>LedTile.qml</file>
     </qresource>
 </RCC>
