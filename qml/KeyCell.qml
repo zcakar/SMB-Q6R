@@ -6,6 +6,7 @@ import QtQuick 2.12
 
 Item {
     id: cell
+    property int    cellIndex:   -1
     property string axisLabel:   "J1"
     property string sign:        "−"
     property int    code:        -1

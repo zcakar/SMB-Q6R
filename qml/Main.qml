@@ -439,9 +439,6 @@ Rectangle {
                             selected: root.selectedCell === cellIndex
                             onTapped: root.tapCell(cellIndex)
                         }
-
-                        // Cell index property exists via Repeater
-                        property int cellIndex: 0
                     }
                 }
             }
