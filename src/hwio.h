@@ -5,32 +5,28 @@
 namespace smbq6r {
 
 class LedController;
-// Forward declarations for future iterations:
-// class BuzzerController;
-// class SwitchMonitor;
-// class BacklightController;
-// class SystemInfo;
+class SwitchMonitor;
+class BuzzerController;
+class BacklightController;
+class MatrixKeysMonitor;
 
-// Singleton facade that owns every kernel-device file descriptor for the
-// HN00-09Q6 pendant. The vendor's Lavichip drivers (/dev/leds, /dev/pwm,
-// /dev/buttons, /dev/buttonstop) tolerate exactly one open() per process —
-// reopening corrupts internal driver state. Centralising ownership here
-// guarantees that invariant.
+// Singleton facade owning every kernel-device file descriptor. The vendor
+// Lavichip drivers tolerate exactly one open() per process; centralising
+// ownership here enforces that invariant.
 //
-// Construction is lazy and one-shot via instance(). Order of subcomponent
-// construction is fixed (LED → buzzer → switches → backlight → system info)
-// so a subsystem can depend on those listed before it.
+// Initialisation order is fixed: LED → switches → buzzer → backlight →
+// matrix keys → wheel. Subsystems may rely on those declared before them.
 class HwIo
 {
 public:
-    // First call creates the singleton; subsequent calls return the same
-    // instance. Not thread-safe for first call — invoke from the main
-    // thread before any other thread touches HwIo.
     static HwIo& instance();
 
-    LedController& leds() { return *led_; }
+    LedController&       leds()       { return *led_; }
+    SwitchMonitor&       switches()   { return *switch_; }
+    BuzzerController&    buzzer()     { return *buzzer_; }
+    BacklightController& backlight()  { return *backlight_; }
+    MatrixKeysMonitor&   matrixKeys() { return *matrix_; }
 
-    // Disallow copy/move.
     HwIo(const HwIo&) = delete;
     HwIo& operator=(const HwIo&) = delete;
 
@@ -38,7 +34,11 @@ private:
     HwIo();
     ~HwIo();
 
-    std::unique_ptr<LedController> led_;
+    std::unique_ptr<LedController>       led_;
+    std::unique_ptr<SwitchMonitor>       switch_;
+    std::unique_ptr<BuzzerController>    buzzer_;
+    std::unique_ptr<BacklightController> backlight_;
+    std::unique_ptr<MatrixKeysMonitor>   matrix_;
 };
 
 } // namespace smbq6r

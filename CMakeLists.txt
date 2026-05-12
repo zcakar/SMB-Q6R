@@ -41,11 +41,12 @@ set(SMB_Q6R_SOURCES
     src/main.cpp
     src/hwio.cpp
     src/led_controller.cpp
+    src/switch_monitor.cpp
+    src/buzzer_controller.cpp
+    src/backlight_controller.cpp
+    src/matrix_keys_monitor.cpp
     src/diagnostics_model.cpp
 )
-
-# Phase 1 (iter B+) will add: buzzer_controller.cpp, switch_monitor.cpp,
-# backlight_controller.cpp, system_info.cpp.
 
 set(SMB_Q6R_RESOURCES
     qml/qml.qrc
