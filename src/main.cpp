@@ -7,6 +7,8 @@
 #include "diagnostics_model.h"
 
 #include <QGuiApplication>
+#include <QFont>
+#include <QFontDatabase>
 #include <QQuickView>
 #include <QQmlContext>
 #include <QQmlError>
@@ -18,6 +20,31 @@ int main(int argc, char* argv[])
     QGuiApplication::setApplicationName("SMB-Q6R");
     QGuiApplication::setOrganizationName("smbq6r");
     QGuiApplication::setApplicationVersion("0.1.0");
+
+    // The Lavichip image's Qt 5.15.10 build doesn't pick up system fonts
+    // through fontconfig the way most desktop builds do — even though
+    // /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf is installed,
+    // QFontDatabase().families() doesn't list it, and the default font
+    // ends up being a CJK face that's missing common Latin Unicode glyphs
+    // (U+2212 minus, U+2014 em-dash, ↻ ▼ ▲ → · etc.) — they render as
+    // tofu rectangles. Bundle DejaVu Sans in the QRC and register it as an
+    // application font so we are independent of the system font setup.
+    {
+        const int regular = QFontDatabase::addApplicationFont(
+            QStringLiteral(":/fonts/DejaVuSans.ttf"));
+        QFontDatabase::addApplicationFont(
+            QStringLiteral(":/fonts/DejaVuSans-Bold.ttf"));
+        QString family;
+        if (regular >= 0) {
+            const QStringList fams = QFontDatabase::applicationFontFamilies(regular);
+            if (!fams.isEmpty()) family = fams.first();
+        }
+        if (family.isEmpty()) family = QStringLiteral("Sans");
+        QFont base(family);
+        base.setStyleStrategy(QFont::PreferAntialias);
+        QGuiApplication::setFont(base);
+        qInfo() << "Application font:" << family;
+    }
 
     qInfo() << "SMB-Q6R" << QGuiApplication::applicationVersion()
             << "on Qt" << qVersion()

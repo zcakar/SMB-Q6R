@@ -1,20 +1,24 @@
 [Unit]
 Description=SMB-Q6R Teach Pendant UI
-# Wait until the XFCE graphical session is up so DISPLAY/XAUTHORITY exist.
-After=graphical-session.target
-PartOf=graphical-session.target
-Requires=graphical-session.target
+# XFCE on Ubuntu 20.04 does NOT activate graphical-session.target, so we
+# anchor to default.target instead. The ExecStartPre poll below blocks until
+# the X server is actually up, so we don't race xfce4-session.
+After=default.target
 # Back off if it crash-loops — 5 restarts within 60 s and we stop trying.
 StartLimitBurst=5
 StartLimitIntervalSec=60
 
 [Service]
 Type=simple
+# Wait up to 60 s for the X display Qt will connect to (DISPLAY=:0).
+# xdpyinfo is in the x11-utils package and is already installed on the
+# Lavichip image.
+ExecStartPre=/bin/sh -c 'for i in $(seq 1 60); do DISPLAY=:0 xdpyinfo >/dev/null 2>&1 && exit 0; sleep 1; done; echo "smb-q6r: X timeout"; exit 1'
 ExecStart=/home/Tronlong/smb-q6r/smb_q6r
 Restart=on-failure
 RestartSec=3
-# Hint to Qt that we want a borderless full-screen window on xcb.
+Environment=DISPLAY=:0
 Environment=QT_QPA_PLATFORM=xcb
 
 [Install]
-WantedBy=graphical-session.target
+WantedBy=default.target

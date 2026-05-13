@@ -8,4 +8,8 @@
         <file>PressButton.qml</file>
         <file>KeyCell.qml</file>
     </qresource>
+    <qresource prefix="/fonts">
+        <file alias="DejaVuSans.ttf">fonts/DejaVuSans.ttf</file>
+        <file alias="DejaVuSans-Bold.ttf">fonts/DejaVuSans-Bold.ttf</file>
+    </qresource>
 </RCC>
