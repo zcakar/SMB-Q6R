@@ -9,13 +9,21 @@
 // into the next empty cell. Re-press an already-mapped key to flash it.
 // Tap a cell to clear it; the next press is then captured at that slot.
 
-import QtQuick 2.12
+import QtQuick 2.15
 
 Rectangle {
     id: root
     width: 1280
     height: 800
     color: "#f3f4f6"
+    focus: true
+
+    // In simulator mode (running on host without Lavichip devices) every
+    // physical key the user presses on a real keyboard is forwarded to the
+    // matrix-key monitor as an EV_KEY event, so the rest of the UI behaves
+    // identically to live hardware.
+    Keys.onPressed:  if (diag.simulatorMode) diag.simKeyEvent(event.nativeScanCode - 8, true)
+    Keys.onReleased: if (diag.simulatorMode) diag.simKeyEvent(event.nativeScanCode - 8, false)
 
     // ───── Palette ─────────────────────────────────────────────────
     QtObject {
@@ -34,10 +42,96 @@ Rectangle {
         readonly property color danger:    "#dc2626"
     }
 
+    // ───── Simulator banner (host build only) ──────────────────────
+    // Shown when ANY hardware controller fell back to its in-memory
+    // simulator. Provides inject controls so the rest of the UI can be
+    // exercised without the Lavichip devices being present.
+    Rectangle {
+        id: simBanner
+        visible: diag.simulatorMode
+        x: 0; y: 0
+        width: parent.width
+        height: visible ? 36 : 0
+        color: "#fef3c7"          // amber-100
+        border.color: "#f59e0b"   // amber-500
+        border.width: 1
+
+        Row {
+            anchors.left: parent.left; anchors.leftMargin: 14
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: 14
+
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: "SIMULATOR — no hardware. Use keyboard for matrix keys."
+                font.pixelSize: 12; font.bold: true; color: "#92400e"
+            }
+
+            Row {
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 4
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "Mode:"; font.pixelSize: 12; color: "#92400e"
+                }
+                Repeater {
+                    model: ["Auto", "Manual", "Stop"]
+                    Rectangle {
+                        width: 56; height: 22
+                        radius: 3
+                        color: diag.mode === modelData ? "#f59e0b" : "#fffbeb"
+                        border.color: "#f59e0b"
+                        Text {
+                            anchors.centerIn: parent
+                            text: modelData
+                            font.pixelSize: 11
+                            color: diag.mode === modelData ? "#ffffff" : "#92400e"
+                        }
+                        MouseArea { anchors.fill: parent; onClicked: diag.simSetMode(modelData) }
+                    }
+                }
+            }
+
+            Row {
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 4
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "Deadman:"; font.pixelSize: 12; color: "#92400e"
+                }
+                Repeater {
+                    model: [
+                        { label: "off",  s1: false, s2: false },
+                        { label: "S1",   s1: true,  s2: false },
+                        { label: "S1+S2",s1: true,  s2: true  }
+                    ]
+                    Rectangle {
+                        width: 50; height: 22
+                        radius: 3
+                        property bool sel: diag.enableS1 === modelData.s1 && diag.enableS2 === modelData.s2
+                        color: sel ? "#f59e0b" : "#fffbeb"
+                        border.color: "#f59e0b"
+                        Text {
+                            anchors.centerIn: parent
+                            text: modelData.label
+                            font.pixelSize: 11
+                            color: sel ? "#ffffff" : "#92400e"
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: diag.simSetDeadman(modelData.s1, modelData.s2)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // ───── Header ──────────────────────────────────────────────────
     Rectangle {
         id: header
-        x: 0; y: 0
+        x: 0
+        y: simBanner.visible ? simBanner.height : 0
         width: parent.width; height: 70
         color: "#ffffff"
 
@@ -97,9 +191,9 @@ Rectangle {
     // Mode switch + deadman + buzzer/backlight + history
     Item {
         id: leftPanel
-        x: 12; y: header.height + 12
+        x: 12; y: header.y + header.height + 12
         width: 514
-        height: root.height - header.height - 24
+        height: root.height - header.y - header.height - 24
 
         // Mode switch — three pills stacked vertically (no overlap)
         Card {
@@ -342,9 +436,9 @@ Rectangle {
     Item {
         id: rightPanel
         x: leftPanel.x + leftPanel.width + 12
-        y: header.height + 12
+        y: header.y + header.height + 12
         width: root.width - x - 12
-        height: root.height - header.height - 24
+        height: root.height - header.y - header.height - 24
 
         // LEDs
         Card {

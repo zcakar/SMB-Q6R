@@ -14,7 +14,8 @@ class BacklightController
 public:
     BacklightController();
 
-    bool isReady() const { return ready_; }
+    bool isReady() const { return ready_ || simulator_; }
+    bool isSimulator() const { return simulator_; }
     QString errorString() const { return error_; }
 
     // Returns 0..maxValue() on success, -1 on failure.
@@ -27,6 +28,8 @@ public:
 
 private:
     bool ready_ = false;
+    bool simulator_ = false;
+    mutable int simValue_ = 75;
     int  max_   = 100;
     QString brightnessPath_;
     QString error_;

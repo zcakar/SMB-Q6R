@@ -22,7 +22,7 @@ SwitchMonitor::SwitchMonitor(QObject* parent)
 {
     buttonsFd_ = ::open(kButtonsDev, O_RDONLY | O_NONBLOCK);
     if (buttonsFd_ < 0) {
-        qWarning() << "SwitchMonitor:" << kButtonsDev << "open failed —" << ::strerror(errno);
+        qInfo() << "SwitchMonitor:" << kButtonsDev << "→ simulator";
     } else {
         buttonsNotifier_ = new QSocketNotifier(buttonsFd_, QSocketNotifier::Read, this);
         connect(buttonsNotifier_, &QSocketNotifier::activated,
@@ -32,12 +32,18 @@ SwitchMonitor::SwitchMonitor(QObject* parent)
 
     buttonstopFd_ = ::open(kButtonstopDev, O_RDONLY | O_NONBLOCK);
     if (buttonstopFd_ < 0) {
-        qWarning() << "SwitchMonitor:" << kButtonstopDev << "open failed —" << ::strerror(errno);
+        qInfo() << "SwitchMonitor:" << kButtonstopDev << "→ simulator";
     } else {
         buttonstopNotifier_ = new QSocketNotifier(buttonstopFd_, QSocketNotifier::Read, this);
         connect(buttonstopNotifier_, &QSocketNotifier::activated,
                 this, &SwitchMonitor::onButtonstopReadable);
         qInfo() << "SwitchMonitor: opened" << kButtonstopDev;
+    }
+
+    simulator_ = (buttonsFd_ < 0 || buttonstopFd_ < 0);
+    if (simulator_) {
+        qInfo() << "SwitchMonitor: SIMULATOR mode";
+        return;
     }
 
     // Trigger an initial read so the model reflects current state without
@@ -58,7 +64,29 @@ SwitchMonitor::SwitchMonitor(QObject* parent)
         if (mode_ != Mode::None) primeTimer_->stop();
     });
     primeTimer_->start();
-    QTimer::singleShot(10'000, primeTimer_, &QTimer::stop);
+    QTimer::singleShot(10000, primeTimer_, &QTimer::stop);
+}
+
+void SwitchMonitor::simulateMode(Mode m)
+{
+    QString raw(kFrameLen, QLatin1Char('0'));
+    if (m == Mode::Manual) raw[3] = QLatin1Char('1');
+    if (m == Mode::Auto)   raw[4] = QLatin1Char('1');
+    if (m == Mode::Stop)   raw[5] = QLatin1Char('1');
+    modeByte_ = raw;
+    mode_ = m;
+    emit modeChanged();
+}
+
+void SwitchMonitor::simulateDeadman(bool s1, bool s2)
+{
+    QString raw(kFrameLen, QLatin1Char('0'));
+    if (s1) raw[0] = QLatin1Char('1');
+    if (s2) raw[1] = QLatin1Char('1');
+    enableByte_ = raw;
+    s1_ = s1;
+    s2_ = s2;
+    emit enableChanged();
 }
 
 SwitchMonitor::~SwitchMonitor()

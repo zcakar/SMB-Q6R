@@ -42,6 +42,10 @@ class DiagnosticsModel : public QObject
     Q_PROPERTY(QStringList keyHistory     READ keyHistory     NOTIFY keyEvent)
     Q_PROPERTY(bool        keysReady      READ keysReady      CONSTANT)
 
+    // True when ANY subsystem fell back to its in-memory simulator (typical
+    // when running on the development host with no Lavichip devices present).
+    Q_PROPERTY(bool        simulatorMode  READ simulatorMode  CONSTANT)
+
 public:
     explicit DiagnosticsModel(QObject* parent = nullptr);
 
@@ -72,6 +76,7 @@ public:
     bool lastKeyPressed() const;
     QStringList keyHistory() const;
     bool keysReady() const;
+    bool simulatorMode();
 
 public slots:
     void setLed(int port, bool on);
@@ -85,6 +90,11 @@ public slots:
     QVariantList loadKeyMap();
     void         saveKeyMap(const QVariantList& codes);
     void         clearKeyMap();
+
+    // Simulator drivers — invoked from QML when running on the host.
+    void simSetMode(const QString& name);        // "Auto" / "Manual" / "Stop"
+    void simSetDeadman(bool s1, bool s2);
+    void simKeyEvent(int code, bool pressed);
 
 signals:
     void ledChanged();

@@ -24,12 +24,16 @@ public:
     explicit MatrixKeysMonitor(QObject* parent = nullptr);
     ~MatrixKeysMonitor() override;
 
-    bool isReady() const { return fd_ >= 0; }
+    bool isReady() const { return fd_ >= 0 || simulator_; }
+    bool isSimulator() const { return simulator_; }
 
     int     lastCode()    const { return lastCode_; }
     QString lastName()    const { return lastName_; }
     bool    lastPressed() const { return lastPressed_; }
     QStringList history() const { return history_; }
+
+    // Inject a key event from the simulator (e.g. Qt keyboard event).
+    void simulateKey(int code, bool pressed);
 
 signals:
     void keyEvent();
@@ -38,6 +42,7 @@ private:
     void onReadable();
 
     int fd_ = -1;
+    bool simulator_ = false;
     QSocketNotifier* notifier_ = nullptr;
 
     int     lastCode_    = 0;

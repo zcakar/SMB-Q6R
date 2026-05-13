@@ -27,8 +27,9 @@ public:
     LedController(const LedController&) = delete;
     LedController& operator=(const LedController&) = delete;
 
-    // True if /dev/leds was opened successfully.
-    bool isReady() const { return fd_ >= 0; }
+    // True if /dev/leds was opened OR running in simulator mode.
+    bool isReady() const { return fd_ >= 0 || simulator_; }
+    bool isSimulator() const { return simulator_; }
     QString errorString() const { return error_; }
 
     // Turn the given LED on or off. Returns false if the ioctl failed or
@@ -46,6 +47,7 @@ public:
 private:
     int fd_ = -1;
     int mask_ = 0;
+    bool simulator_ = false;
     QString error_;
 };
 

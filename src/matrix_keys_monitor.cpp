@@ -45,13 +45,30 @@ MatrixKeysMonitor::MatrixKeysMonitor(QObject* parent)
 {
     fd_ = ::open(kDevice, O_RDONLY | O_NONBLOCK);
     if (fd_ < 0) {
-        qWarning() << "MatrixKeysMonitor:" << kDevice << "open failed —" << ::strerror(errno);
+        simulator_ = true;
+        qInfo() << "MatrixKeysMonitor: SIMULATOR mode —" << ::strerror(errno);
         return;
     }
     notifier_ = new QSocketNotifier(fd_, QSocketNotifier::Read, this);
     connect(notifier_, &QSocketNotifier::activated,
             this, &MatrixKeysMonitor::onReadable);
     qInfo() << "MatrixKeysMonitor: opened" << kDevice;
+}
+
+void MatrixKeysMonitor::simulateKey(int code, bool pressed)
+{
+    lastCode_    = code;
+    lastPressed_ = pressed;
+    const QString name = codeName(code);
+    lastName_ = name == "?"
+        ? QStringLiteral("KEY_%1").arg(code)
+        : QStringLiteral("KEY_%1").arg(name);
+    const char* tag = pressed ? "v" : "^";
+    const QString entry = QString::fromLatin1("%1 %2 (code %3)")
+        .arg(tag, lastName_, QString::number(code));
+    history_.prepend(entry);
+    while (history_.size() > kMaxHistory) history_.removeLast();
+    emit keyEvent();
 }
 
 MatrixKeysMonitor::~MatrixKeysMonitor()

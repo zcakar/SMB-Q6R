@@ -4,6 +4,13 @@
 > PDF datasheet ve eski SDK manualinde olmayan/farklı olan değerler burada
 > kayıt altındadır. Donanım/imaj güncellenirse bu dosya yenilenmelidir.
 
+## Erişim Bilgileri (Özet)
+
+| Hesap     | Parola      | Kullanım                                |
+|-----------|-------------|------------------------------------------|
+| `Tronlong`| (boş)       | SSH + `sudo` (NOPASSWD üzerinden boş şifreli) |
+| `root`    | `lyx2949`   | Doğrudan root login (su, ssh root@...)   |
+
 ## SSH Erişimi
 
 ```bash

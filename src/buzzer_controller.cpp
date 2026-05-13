@@ -22,8 +22,9 @@ BuzzerController::BuzzerController()
 {
     fd_ = ::open(kDevice, O_RDWR);
     if (fd_ < 0) {
-        error_ = QStringLiteral("%1: %2").arg(kDevice, ::strerror(errno));
-        qWarning() << "BuzzerController: open failed —" << error_;
+        simulator_ = true;
+        error_ = QStringLiteral("%1: %2 (simulator)").arg(kDevice, ::strerror(errno));
+        qInfo() << "BuzzerController: SIMULATOR mode";
         return;
     }
     qInfo() << "BuzzerController: opened" << kDevice;
@@ -39,8 +40,12 @@ BuzzerController::~BuzzerController()
 
 bool BuzzerController::beep(int ms)
 {
-    if (fd_ < 0) return false;
     if (ms < kMinDuration) ms = kMinDuration;
+    if (simulator_) {
+        qInfo() << "BuzzerController[sim]: beep" << ms << "ms";
+        return true;
+    }
+    if (fd_ < 0) return false;
     if (::ioctl(fd_, kCmdTimed, ms) < 0) {
         qWarning() << "BuzzerController::beep(" << ms << ") failed:" << ::strerror(errno);
         return false;
@@ -50,6 +55,10 @@ bool BuzzerController::beep(int ms)
 
 bool BuzzerController::setHold(bool on)
 {
+    if (simulator_) {
+        qInfo() << "BuzzerController[sim]: hold =" << on;
+        return true;
+    }
     if (fd_ < 0) return false;
     if (::ioctl(fd_, kCmdHold, on ? 1 : 0) < 0) {
         qWarning() << "BuzzerController::setHold(" << on << ") failed:" << ::strerror(errno);
@@ -60,10 +69,9 @@ bool BuzzerController::setHold(bool on)
 
 bool BuzzerController::silence()
 {
+    if (simulator_) return true;
     if (fd_ < 0) return false;
     if (::ioctl(fd_, kCmdMute, 0) < 0) {
-        // Some kernels reject cmd=0 with EINVAL when buzzer is already off.
-        // Fall back to "hold off".
         if (::ioctl(fd_, kCmdHold, 0) < 0) {
             return false;
         }

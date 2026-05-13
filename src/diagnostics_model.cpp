@@ -56,6 +56,16 @@ bool DiagnosticsModel::lastKeyPressed() const { return HwIo::instance().matrixKe
 QStringList DiagnosticsModel::keyHistory() const { return HwIo::instance().matrixKeys().history(); }
 bool DiagnosticsModel::keysReady() const    { return HwIo::instance().matrixKeys().isReady(); }
 
+bool DiagnosticsModel::simulatorMode()
+{
+    auto& io = HwIo::instance();
+    return io.leds().isSimulator()
+        || io.switches().isSimulator()
+        || io.buzzer().isSimulator()
+        || io.backlight().isSimulator()
+        || io.matrixKeys().isSimulator();
+}
+
 void DiagnosticsModel::setLed(int port, bool on)
 {
     if (HwIo::instance().leds().set(port, on)) emit ledChanged();
@@ -95,6 +105,25 @@ void DiagnosticsModel::saveKeyMap(const QVariantList& codes)
 void DiagnosticsModel::clearKeyMap()
 {
     KeyMapStore::clear();
+}
+
+void DiagnosticsModel::simSetMode(const QString& name)
+{
+    SwitchMonitor::Mode m = SwitchMonitor::Mode::None;
+    if (name.compare("Auto",   Qt::CaseInsensitive) == 0) m = SwitchMonitor::Mode::Auto;
+    if (name.compare("Manual", Qt::CaseInsensitive) == 0) m = SwitchMonitor::Mode::Manual;
+    if (name.compare("Stop",   Qt::CaseInsensitive) == 0) m = SwitchMonitor::Mode::Stop;
+    HwIo::instance().switches().simulateMode(m);
+}
+
+void DiagnosticsModel::simSetDeadman(bool s1, bool s2)
+{
+    HwIo::instance().switches().simulateDeadman(s1, s2);
+}
+
+void DiagnosticsModel::simKeyEvent(int code, bool pressed)
+{
+    HwIo::instance().matrixKeys().simulateKey(code, pressed);
 }
 
 } // namespace smbq6r

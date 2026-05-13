@@ -22,7 +22,8 @@ public:
     BuzzerController(const BuzzerController&) = delete;
     BuzzerController& operator=(const BuzzerController&) = delete;
 
-    bool isReady() const { return fd_ >= 0; }
+    bool isReady() const { return fd_ >= 0 || simulator_; }
+    bool isSimulator() const { return simulator_; }
     QString errorString() const { return error_; }
 
     // Beep for `ms` milliseconds (min clamped to 10).
@@ -36,6 +37,7 @@ public:
 
 private:
     int fd_ = -1;
+    bool simulator_ = false;
     QString error_;
 };
 

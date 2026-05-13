@@ -15,8 +15,8 @@ BacklightController::BacklightController()
     QDir dir(kBacklightDir);
     const auto entries = dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
     if (entries.isEmpty()) {
-        error_ = QStringLiteral("no backlight under %1").arg(kBacklightDir);
-        qWarning() << "BacklightController:" << error_;
+        simulator_ = true;
+        qInfo() << "BacklightController: SIMULATOR mode (no backlight sysfs)";
         return;
     }
     const QString panel = entries.first();
@@ -32,8 +32,8 @@ BacklightController::BacklightController()
 
     QFile f(brightnessPath_);
     if (!f.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        error_ = QStringLiteral("cannot open %1 for read: %2").arg(brightnessPath_, f.errorString());
-        qWarning() << "BacklightController:" << error_;
+        simulator_ = true;
+        qInfo() << "BacklightController: SIMULATOR mode —" << f.errorString();
         return;
     }
     ready_ = true;
@@ -42,6 +42,7 @@ BacklightController::BacklightController()
 
 int BacklightController::value() const
 {
+    if (simulator_) return simValue_;
     if (!ready_) return -1;
     QFile f(brightnessPath_);
     if (!f.open(QIODevice::ReadOnly | QIODevice::Text)) return -1;
@@ -52,9 +53,10 @@ int BacklightController::value() const
 
 bool BacklightController::setValue(int v)
 {
-    if (!ready_) return false;
     if (v < 0) v = 0;
     if (v > max_) v = max_;
+    if (simulator_) { simValue_ = v; return true; }
+    if (!ready_) return false;
     QFile f(brightnessPath_);
     if (!f.open(QIODevice::WriteOnly | QIODevice::Text)) {
         qWarning() << "BacklightController::setValue:" << f.errorString();
