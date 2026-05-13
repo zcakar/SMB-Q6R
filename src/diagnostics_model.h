@@ -42,6 +42,11 @@ class DiagnosticsModel : public QObject
     Q_PROPERTY(QStringList keyHistory     READ keyHistory     NOTIFY keyEvent)
     Q_PROPERTY(bool        keysReady      READ keysReady      CONSTANT)
 
+    // Hardcoded HN00-09Q6 jog-button map: 14 codes in screen order
+    //   [J1−, J1+, J2−, J2+, J3−, J3+, ..., J7−, J7+]
+    // Live-captured 2026-05-13. Constant — no user mapping required.
+    Q_PROPERTY(QVariantList defaultKeyMap READ defaultKeyMap  CONSTANT)
+
     // True when ANY subsystem fell back to its in-memory simulator (typical
     // when running on the development host with no Lavichip devices present).
     Q_PROPERTY(bool        simulatorMode  READ simulatorMode  CONSTANT)
@@ -77,19 +82,13 @@ public:
     QStringList keyHistory() const;
     bool keysReady() const;
     bool simulatorMode();
+    QVariantList defaultKeyMap() const;
 
 public slots:
     void setLed(int port, bool on);
     void allLedsOff();
     void beep(int ms);
     void holdBuzzer(bool on);
-
-    // Persistent 14-cell matrix-keypad mapping (KeyMapStore on disk).
-    // QML calls loadKeyMap() at startup and saveKeyMap(...) after every
-    // change. clearKeyMap() removes the stored file (used by "reset map").
-    QVariantList loadKeyMap();
-    void         saveKeyMap(const QVariantList& codes);
-    void         clearKeyMap();
 
     // Simulator drivers — invoked from QML when running on the host.
     void simSetMode(const QString& name);        // "Auto" / "Manual" / "Stop"

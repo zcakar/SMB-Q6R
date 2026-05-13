@@ -53,10 +53,11 @@ done
 echo "[deploy] target: ${USER}@${HOST}"
 
 # Always stop running instances before redeploy / launch.
-# Use 'killall' (matches basename only) not 'pkill -f' (which matches the
-# whole cmdline and accidentally kills the remote bash that's invoking it,
-# since our path appears as a literal argument in that bash's cmdline).
-SSH "killall smb_q6r 2>/dev/null; for v in vendor_led vendor_button vendor_matrixkeys vendor_pwm vendor_rotaryencoder vendor_wheel vendor_backlight; do killall \$v 2>/dev/null; done; true"
+# If the systemd --user unit is installed it owns the lifecycle: stop it via
+# systemctl so a Restart= directive doesn't immediately respawn the binary
+# during scp. Fall back to killall for vendor demos (not unit-managed) and
+# any stray smb_q6r left over from older deploys without systemd.
+SSH "systemctl --user stop smb-q6r.service 2>/dev/null; killall smb_q6r 2>/dev/null; for v in vendor_led vendor_button vendor_matrixkeys vendor_pwm vendor_rotaryencoder vendor_wheel vendor_backlight; do killall \$v 2>/dev/null; done; true"
 
 if [[ $kill_only -eq 1 ]]; then
     echo "[deploy] kill-only; done."
@@ -95,13 +96,21 @@ if [[ $skip_run -eq 1 ]]; then
 fi
 
 # --- Launch ---
+# Prefer the systemd --user unit if it's installed — that's how the device
+# runs in production. Vendor demos still launch directly (they're throwaway
+# diagnostic tools, no unit for them).
 if [[ -n "$run_vendor" ]]; then
     cmd="${REMOTE_VENDOR_DIR}/vendor_${run_vendor}"
     label="vendor_${run_vendor}"
+    echo "[deploy] launching ${label} (DISPLAY=:0)"
+    SSH "DISPLAY=:0 nohup ${cmd} >/tmp/${label}.log 2>&1 & disown; sleep 1; tail -5 /tmp/${label}.log; ps -C $(basename ${cmd}) -o pid,etime 2>/dev/null"
 else
-    cmd="${REMOTE_APP}"
     label="smb_q6r"
+    if SSH "test -f \$HOME/.config/systemd/user/smb-q6r.service"; then
+        echo "[deploy] starting via systemd --user"
+        SSH "systemctl --user start smb-q6r.service; sleep 1; systemctl --user --no-pager status smb-q6r.service | head -8"
+    else
+        echo "[deploy] launching ${label} (DISPLAY=:0, no systemd unit)"
+        SSH "DISPLAY=:0 nohup ${REMOTE_APP} >/tmp/${label}.log 2>&1 & disown; sleep 1; tail -5 /tmp/${label}.log; ps -C smb_q6r -o pid,etime 2>/dev/null"
+    fi
 fi
-
-echo "[deploy] launching ${label} (DISPLAY=:0)"
-SSH "DISPLAY=:0 nohup ${cmd} >/tmp/${label}.log 2>&1 & disown; sleep 1; tail -5 /tmp/${label}.log; ps -C $(basename ${cmd}) -o pid,etime 2>/dev/null"

@@ -502,7 +502,7 @@ Rectangle {
             x: 0; y: ledCard.y + ledCard.height + 12
             width: parent.width
             height: rightPanel.height - y
-            title: "MATRIX KEYPAD  (sarı vurgulanan butona bas)"
+            title: "MATRIX KEYPAD"
 
             Column {
                 anchors.left: parent.left; anchors.leftMargin: 12
@@ -527,8 +527,8 @@ Rectangle {
                             axisLabel: "J" + (rowN + 1) + " −"
                             code: root.keyMap[cellIndex] !== undefined ? root.keyMap[cellIndex] : -1
                             justPressed: code >= 0 && diag.lastKeyPressed && diag.lastKeyCode === code
-                            selected: root.selectedCell === cellIndex
-                            onTapped: root.tapCell(cellIndex)
+                            selected: false
+                            onTapped: { /* no-op — mapping is fixed */ }
                         }
                         KeyCell {
                             anchors.right: parent.right
@@ -539,8 +539,8 @@ Rectangle {
                             axisLabel: "J" + (rowN + 1) + " +"
                             code: root.keyMap[cellIndex] !== undefined ? root.keyMap[cellIndex] : -1
                             justPressed: code >= 0 && diag.lastKeyPressed && diag.lastKeyCode === code
-                            selected: root.selectedCell === cellIndex
-                            onTapped: root.tapCell(cellIndex)
+                            selected: false
+                            onTapped: { /* no-op — mapping is fixed */ }
                         }
                     }
                 }
@@ -555,37 +555,8 @@ Rectangle {
                 Text {
                     anchors.left: parent.left
                     anchors.verticalCenter: parent.verticalCenter
-                    text: {
-                        if (root.mappedCount === 14)
-                            return "Mapped:  14 / 14   (tamam — bir tuşa bas, eşleşmesi yeşil yanar)"
-                        var s = root.selectedCell
-                        var lbl = s < 7
-                            ? "J" + (s + 1) + " −"
-                            : "J" + (s - 6) + " +"
-                        return "Mapped:  " + root.mappedCount + " / 14   " +
-                               "→ şimdi bas:  " + lbl
-                    }
-                    font.pixelSize: 12; font.bold: root.mappedCount < 14
-                    color: root.mappedCount < 14 ? pal.accent : pal.success
-                }
-                Rectangle {
-                    anchors.right: parent.right
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: 90; height: 26; radius: 4
-                    color: resetMa.pressed ? "#fee2e2" : "#fafafa"
-                    border.color: pal.border; border.width: 1
-                    Text { anchors.centerIn: parent; text: "reset map"; font.pixelSize: 11; color: pal.textSub }
-                    MouseArea {
-                        id: resetMa
-                        anchors.fill: parent
-                        onClicked: {
-                            var fresh = []
-                            for (var i = 0; i < 14; i++) fresh.push(-1)
-                            root.keyMap = fresh
-                            root.selectedCell = 0     // start guided learn from cell 0
-                            diag.clearKeyMap()        // remove the saved file too
-                        }
-                    }
+                    text: "14 jog buton — bir butona bas, eşleşmesi yeşil yanar"
+                    font.pixelSize: 12; color: pal.textSub
                 }
             }
         }
@@ -600,36 +571,9 @@ Rectangle {
     property string  enableByteText: "--------"
     property int     blValue:        50
     property var     keyHistArr:     []
-    property var     keyMap:         [-1,-1,-1,-1,-1,-1,-1, -1,-1,-1,-1,-1,-1,-1]
-    // Guided learn: the currently selected cell is the slot that will receive
-    // the next physical key press. App starts at cell 0 (J1−), advances to
-    // the next empty cell after every assignment. Tap any cell to reposition.
-    property int     selectedCell:   0
+    // Fixed jog-button map from DiagnosticsModel — live-captured codes.
+    property var     keyMap:         diag.defaultKeyMap
     property bool    buzzerHeld:     false
-
-    property int     mappedCount: {
-        var c = 0
-        for (var i = 0; i < keyMap.length; i++) if (keyMap[i] >= 0) c++
-        return c
-    }
-
-    // Tap a cell to make it the "next-to-fill" slot. Clears any existing
-    // code in that cell so the next key press is captured there.
-    function tapCell(idx) {
-        var copy = root.keyMap.slice()
-        copy[idx] = -1
-        root.keyMap = copy
-        root.selectedCell = idx
-        diag.saveKeyMap(copy)
-    }
-
-    // Find the next empty cell index starting after `from`, wrapping at 14.
-    // Returns -1 if every cell is mapped.
-    function nextEmptyCell(from) {
-        for (var i = from + 1; i < 14; i++) if (root.keyMap[i] === -1) return i
-        for (var j = 0; j <= from; j++)     if (root.keyMap[j] === -1) return j
-        return -1
-    }
 
     Connections {
         target: diag
@@ -642,22 +586,7 @@ Rectangle {
             root.enableByteText = diag.enableByte
         }
         onBacklightChanged:  root.blValue = diag.backlight
-        onKeyEvent: {
-            // Guided learn: write the just-pressed code into the currently
-            // selected cell (the one the user is being asked to press now),
-            // then advance the selection to the next empty cell. This makes
-            // the mapping unambiguous — whatever the user pressed lands in
-            // exactly the cell the UI was asking them to press.
-            if (diag.lastKeyPressed && root.selectedCell >= 0 && root.selectedCell < 14) {
-                var code = diag.lastKeyCode
-                var copy = root.keyMap.slice()
-                copy[root.selectedCell] = code
-                root.keyMap = copy
-                root.selectedCell = root.nextEmptyCell(root.selectedCell)
-                diag.saveKeyMap(copy)   // persist after every press
-            }
-            root.keyHistArr = diag.keyHistory
-        }
+        onKeyEvent:          root.keyHistArr = diag.keyHistory
     }
 
     Component.onCompleted: {
@@ -669,18 +598,5 @@ Rectangle {
         root.enableByteText = diag.enableByte
         root.blValue        = diag.backlight
         root.keyHistArr     = diag.keyHistory
-
-        // Load any previously saved matrix-key mapping from
-        // ~/.smb-q6r/keymap.dat (empty file → all -1). Set selectedCell to
-        // the first unmapped slot so guided learn picks up where it stopped.
-        var saved = diag.loadKeyMap()
-        if (saved && saved.length === 14) {
-            root.keyMap = saved
-        }
-        var firstEmpty = -1
-        for (var i = 0; i < 14; i++) {
-            if (root.keyMap[i] === -1) { firstEmpty = i; break }
-        }
-        root.selectedCell = firstEmpty   // -1 ⇒ everything mapped
     }
 }

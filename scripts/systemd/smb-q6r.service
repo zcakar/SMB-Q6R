@@ -1,0 +1,20 @@
+[Unit]
+Description=SMB-Q6R Teach Pendant UI
+# Wait until the XFCE graphical session is up so DISPLAY/XAUTHORITY exist.
+After=graphical-session.target
+PartOf=graphical-session.target
+Requires=graphical-session.target
+# Back off if it crash-loops — 5 restarts within 60 s and we stop trying.
+StartLimitBurst=5
+StartLimitIntervalSec=60
+
+[Service]
+Type=simple
+ExecStart=/home/Tronlong/smb-q6r/smb_q6r
+Restart=on-failure
+RestartSec=3
+# Hint to Qt that we want a borderless full-screen window on xcb.
+Environment=QT_QPA_PLATFORM=xcb
+
+[Install]
+WantedBy=graphical-session.target

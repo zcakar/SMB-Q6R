@@ -6,9 +6,6 @@
 #include "buzzer_controller.h"
 #include "backlight_controller.h"
 #include "matrix_keys_monitor.h"
-#include "key_map_store.h"
-
-#include <QVector>
 
 namespace smbq6r {
 
@@ -85,26 +82,23 @@ void DiagnosticsModel::setBacklight(int v)
 void DiagnosticsModel::beep(int ms)         { HwIo::instance().buzzer().beep(ms); }
 void DiagnosticsModel::holdBuzzer(bool on)  { HwIo::instance().buzzer().setHold(on); }
 
-QVariantList DiagnosticsModel::loadKeyMap()
+QVariantList DiagnosticsModel::defaultKeyMap() const
 {
-    const QVector<int> data = KeyMapStore::load();
+    // Live-captured 2026-05-13 from HN00-09Q6 hardware. Index = screen cell:
+    //   [J1−, J1+, J2−, J2+, J3−, J3+, J4−, J4+, J5−, J5+, J6−, J6+, J7−, J7+]
+    static const int kCodes[14] = {
+        62, 47,   //  J1−=KEY_F4, J1+=KEY_V
+        5,  60,   //  J2−=KEY_4,  J2+=KEY_F2
+        4,  3,    //  J3−=KEY_3,  J3+=KEY_2
+        18, 17,   //  J4−=KEY_E,  J4+=KEY_W
+        32, 31,   //  J5−=KEY_D,  J5+=KEY_S
+        46, 45,   //  J6−=KEY_C,  J6+=KEY_X
+        30, 16    //  J7−=KEY_A,  J7+=KEY_Q
+    };
     QVariantList out;
-    out.reserve(data.size());
-    for (int v : data) out.append(v);
+    out.reserve(14);
+    for (int c : kCodes) out.append(c);
     return out;
-}
-
-void DiagnosticsModel::saveKeyMap(const QVariantList& codes)
-{
-    QVector<int> v;
-    v.reserve(codes.size());
-    for (const QVariant& x : codes) v.append(x.toInt());
-    KeyMapStore::save(v);
-}
-
-void DiagnosticsModel::clearKeyMap()
-{
-    KeyMapStore::clear();
 }
 
 void DiagnosticsModel::simSetMode(const QString& name)
