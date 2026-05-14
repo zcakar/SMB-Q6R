@@ -51,17 +51,29 @@ int main(int argc, char* argv[])
             << "/" << QGuiApplication::platformName();
 
     smbq6r::DiagnosticsModel model;
+    const bool isSim = model.simulatorMode();
 
     QQuickView view;
-    view.setTitle(QStringLiteral("SMB-Q6R Hardware Mapping"));
+    view.setTitle(isSim
+        ? QStringLiteral("SMB-Q6R · Host Simulator")
+        : QStringLiteral("SMB-Q6R Hardware Mapping"));
     view.setResizeMode(QQuickView::SizeRootObjectToView);
-    view.resize(1280, 800);
 
     // NOTE: do NOT name this context property "model" — that name is the
     // delegate-scope reserved word inside Repeater/ListView, which would
     // shadow ours and break every binding inside a delegate.
     view.rootContext()->setContextProperty(QStringLiteral("diag"), &model);
-    view.setSource(QUrl(QStringLiteral("qrc:/qml/Main.qml")));
+
+    // On the actual pendant we go straight into the touchscreen UI and
+    // run fullscreen as a kiosk. On a dev host with no Lavichip devices
+    // we wrap Main.qml inside SimulatorBezel.qml, which draws the
+    // physical pendant body (mode switch, E-stop, 14 jog buttons, dead-
+    // man) around the screen area so it can all be exercised by mouse.
+    if (isSim) {
+        view.setSource(QUrl(QStringLiteral("qrc:/qml/SimulatorBezel.qml")));
+    } else {
+        view.setSource(QUrl(QStringLiteral("qrc:/qml/Main.qml")));
+    }
 
     if (view.status() == QQuickView::Error) {
         for (const QQmlError& err : view.errors()) {
@@ -70,11 +82,17 @@ int main(int argc, char* argv[])
         return -1;
     }
 
-    // Fullscreen kiosk: just showFullScreen() — gives a borderless top
-    // window without invoking override-redirect (FramelessWindowHint on
-    // XFCE bypasses the WM and renders the window invisible behind the
-    // compositor). To exit during development:  killall smb_q6r over SSH.
-    view.showFullScreen();
+    if (isSim) {
+        view.resize(1600, 1000);
+        view.show();
+    } else {
+        view.resize(1280, 800);
+        // Fullscreen kiosk: just showFullScreen() — gives a borderless top
+        // window without invoking override-redirect (FramelessWindowHint on
+        // XFCE bypasses the WM and renders the window invisible behind the
+        // compositor). To exit during development:  killall smb_q6r over SSH.
+        view.showFullScreen();
+    }
     view.requestActivate();
     view.raise();
     return app.exec();
