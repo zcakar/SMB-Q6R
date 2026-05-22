@@ -72,6 +72,13 @@ public slots:
     // worker re-creates them after a Connected transition).
     void subscribeNode(const QString& nodeId);
 
+    // Recursively browse the server namespace from the Objects folder
+    // and emit nodeDiscovered() for each node found, up to maxNodes
+    // total and maxDepth levels deep. Used to discover the exact node
+    // ID strings CodeSys exposes for the symbol configuration we're
+    // pointed at (varies slightly between CODESYS versions).
+    void browseNamespace(int maxDepth = 5, int maxNodes = 250);
+
 signals:
     // Lifecycle.
     void stateChanged(smbq6r::PlcLink::State newState);
@@ -84,6 +91,10 @@ signals:
     void valueChanged(QString nodeId, QVariant value);
     void readFailed(QString nodeId, QString reason);
 
+    // Emitted once per node visited by browseNamespace(). depth is 0 for
+    // the immediate children of Objects, 1 for their children, etc.
+    void nodeDiscovered(QString nodeId, QString browseName, int depth);
+
 private slots:
     // Worker-thread slot: pump the open62541 client event loop.
     void onIterate();
@@ -92,6 +103,7 @@ private slots:
     void doDisconnect();
     void doRead(QString nodeId);
     void doSubscribe(QString nodeId);
+    void doBrowse(int maxDepth, int maxNodes);
 
 private:
     static UA_Client* makeClient();

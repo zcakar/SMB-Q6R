@@ -20,6 +20,28 @@ namespace {
 
 #ifdef SMB_Q6R_HAS_OPCUA
 
+// Render a UA_NodeId back into the canonical "ns=N;s=..." / "ns=N;i=..."
+// form so the discovered node IDs round-trip through our string-based
+// QML API. We don't handle GUID/ByteString identifiers — they don't
+// appear in CodeSys symbol exports.
+QString nodeIdToString(const UA_NodeId& id)
+{
+    QString s = QStringLiteral("ns=%1;").arg(id.namespaceIndex);
+    switch (id.identifierType) {
+        case UA_NODEIDTYPE_NUMERIC:
+            s += QStringLiteral("i=%1").arg(id.identifier.numeric);
+            break;
+        case UA_NODEIDTYPE_STRING:
+            s += QStringLiteral("s=%1").arg(QString::fromUtf8(
+                reinterpret_cast<const char*>(id.identifier.string.data),
+                static_cast<int>(id.identifier.string.length)));
+            break;
+        default:
+            s += QStringLiteral("<%1>").arg(int(id.identifierType));
+    }
+    return s;
+}
+
 // Parse "ns=N;s=STRING" or "ns=N;i=NUMBER" into a UA_NodeId. Caller owns
 // any heap memory allocated for string identifiers and must release it
 // via UA_NodeId_clear() once the call that uses it has finished.
@@ -180,6 +202,12 @@ void PlcLink::subscribeNode(const QString& nodeId)
                               Q_ARG(QString, nodeId));
 }
 
+void PlcLink::browseNamespace(int maxDepth, int maxNodes)
+{
+    QMetaObject::invokeMethod(this, "doBrowse", Qt::QueuedConnection,
+                              Q_ARG(int, maxDepth), Q_ARG(int, maxNodes));
+}
+
 void PlcLink::doConnect(QString endpointUrl)
 {
 #ifdef SMB_Q6R_HAS_OPCUA
@@ -212,6 +240,11 @@ void PlcLink::doConnect(QString endpointUrl)
 
     iterateTimer_->start();
     reconfigureSubscriptions();
+
+    // Auto-browse: dump the discovered tree to journalctl so the dev side
+    // can copy/paste node IDs into the symbol bindings. Cheap to do once
+    // per connect; the recursion is depth-capped.
+    doBrowse(5, 250);
 #else
     Q_UNUSED(endpointUrl)
     lastError_ = QStringLiteral("Built without OPC UA support");
@@ -308,6 +341,99 @@ void PlcLink::doSubscribe(QString nodeId)
     reconfigureSubscriptions();
 #else
     Q_UNUSED(nodeId)
+#endif
+}
+
+void PlcLink::doBrowse(int maxDepth, int maxNodes)
+{
+#ifdef SMB_Q6R_HAS_OPCUA
+    if (!client_ || state_ != State::Connected) {
+        qWarning() << "PlcLink::browse — not connected";
+        return;
+    }
+
+    // Iterative BFS so we can cap total nodes without recursion blow-up
+    // on a malformed server. Each queue entry pairs a node we'll browse
+    // with its depth (0 = direct child of Objects).
+    struct Pending { UA_NodeId id; int depth; };
+    QList<Pending> queue;
+
+    // Seed: the standard Objects folder, ns=0;i=85.
+    queue.append({UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), -1});
+
+    int seen = 0;
+    while (!queue.isEmpty() && seen < maxNodes) {
+        const Pending p = queue.takeFirst();
+
+        UA_BrowseRequest req;
+        UA_BrowseRequest_init(&req);
+        req.requestedMaxReferencesPerNode = 0;
+        req.nodesToBrowse = UA_BrowseDescription_new();
+        req.nodesToBrowseSize = 1;
+        // Deep-copy p.id INTO the request so the request owns its own
+        // memory. Shallow-assigning shared string identifiers between
+        // p.id and req.nodesToBrowse[0].nodeId caused a double-free when
+        // both got UA_NodeId_clear()'d at the end of the loop.
+        UA_NodeId_copy(&p.id, &req.nodesToBrowse[0].nodeId);
+        req.nodesToBrowse[0].browseDirection = UA_BROWSEDIRECTION_FORWARD;
+        req.nodesToBrowse[0].includeSubtypes = true;
+        // 0 = "any reference type" — give us organises/hasComponent/hasProperty
+        req.nodesToBrowse[0].referenceTypeId = UA_NODEID_NUMERIC(0, 0);
+        req.nodesToBrowse[0].nodeClassMask  = 0;   // any class
+        req.nodesToBrowse[0].resultMask =
+            UA_BROWSERESULTMASK_NODECLASS | UA_BROWSERESULTMASK_BROWSENAME;
+
+        UA_BrowseResponse rsp = UA_Client_Service_browse(client_, req);
+
+        if (rsp.responseHeader.serviceResult == UA_STATUSCODE_GOOD
+            && rsp.resultsSize > 0) {
+            const UA_BrowseResult& r = rsp.results[0];
+            for (size_t i = 0; i < r.referencesSize && seen < maxNodes; ++i) {
+                const UA_ReferenceDescription& ref = r.references[i];
+                // Skip references back to the standard type hierarchy —
+                // CodeSys exposes those under Objects, but we only care
+                // about variables, GVL nodes, and the application tree.
+                if (ref.nodeId.nodeId.namespaceIndex == 0
+                    && ref.nodeId.nodeId.identifierType == UA_NODEIDTYPE_NUMERIC
+                    && ref.nodeId.nodeId.identifier.numeric < 100) {
+                    continue;
+                }
+                const QString id = nodeIdToString(ref.nodeId.nodeId);
+                const QString name = QString::fromUtf8(
+                    reinterpret_cast<const char*>(ref.browseName.name.data),
+                    static_cast<int>(ref.browseName.name.length));
+                qInfo().noquote() << QString::asprintf(
+                    "PlcLink browse %2d  %-40s  %s",
+                    p.depth + 1, qPrintable(name), qPrintable(id));
+                emit nodeDiscovered(id, name, p.depth + 1);
+                ++seen;
+
+                if (p.depth + 1 < maxDepth) {
+                    UA_NodeId copy;
+                    UA_NodeId_init(&copy);
+                    UA_NodeId_copy(&ref.nodeId.nodeId, &copy);
+                    queue.append({copy, p.depth + 1});
+                }
+            }
+        }
+
+        // p.id was either the seeded Objects literal (no heap) or a copy
+        // we made above. Clearing both shapes is safe.
+        UA_NodeId_clear(const_cast<UA_NodeId*>(&p.id));
+        UA_BrowseResponse_clear(&rsp);
+        UA_BrowseRequest_clear(&req);
+    }
+
+    qInfo() << "PlcLink: browse complete —" << seen << "nodes emitted";
+    // Drain any leftover pending entries' heap (depth-limited tree may
+    // still have unvisited children when seen >= maxNodes).
+    while (!queue.isEmpty()) {
+        Pending p = queue.takeFirst();
+        UA_NodeId_clear(&p.id);
+    }
+#else
+    Q_UNUSED(maxDepth)
+    Q_UNUSED(maxNodes)
 #endif
 }
 

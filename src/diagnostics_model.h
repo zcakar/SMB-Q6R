@@ -110,6 +110,7 @@ public slots:
     void plcDisconnect();
     void plcReadNode(const QString& nodeId);
     void plcSubscribeNode(const QString& nodeId);
+    void plcBrowse();
 
 signals:
     void ledChanged();
@@ -120,6 +121,7 @@ signals:
     void plcValueRead(QString nodeId, QVariant value);
     void plcValueChanged(QString nodeId, QVariant value);
     void plcReadFailed(QString nodeId, QString reason);
+    void plcNodeDiscovered(QString nodeId, QString browseName, int depth);
 };
 
 } // namespace smbq6r

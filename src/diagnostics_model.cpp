@@ -33,6 +33,8 @@ DiagnosticsModel::DiagnosticsModel(QObject* parent)
             this, &DiagnosticsModel::plcValueChanged);
     connect(&io.plc(), &PlcLink::readFailed,
             this, &DiagnosticsModel::plcReadFailed);
+    connect(&io.plc(), &PlcLink::nodeDiscovered,
+            this, &DiagnosticsModel::plcNodeDiscovered);
 }
 
 int DiagnosticsModel::ledMask()  const { return HwIo::instance().leds().activeMask(); }
@@ -172,6 +174,11 @@ void DiagnosticsModel::plcReadNode(const QString& nodeId)
 void DiagnosticsModel::plcSubscribeNode(const QString& nodeId)
 {
     HwIo::instance().plc().subscribeNode(nodeId);
+}
+
+void DiagnosticsModel::plcBrowse()
+{
+    HwIo::instance().plc().browseNamespace();
 }
 
 } // namespace smbq6r
