@@ -112,6 +112,10 @@ void dataChangeTrampoline(UA_Client* /*client*/, UA_UInt32 /*subId*/,
 PlcLink::PlcLink(QObject* parent)
     : QObject(parent)
 {
+    // Cross-thread queued connections need a metatype for every parameter.
+    // Q_ENUM does not auto-register for Qt::QueuedConnection.
+    qRegisterMetaType<PlcLink::State>("smbq6r::PlcLink::State");
+
     workerThread_ = new QThread(this);
     workerThread_->setObjectName(QStringLiteral("PlcLinkWorker"));
     moveToThread(workerThread_);
@@ -179,6 +183,13 @@ void PlcLink::subscribeNode(const QString& nodeId)
 void PlcLink::doConnect(QString endpointUrl)
 {
 #ifdef SMB_Q6R_HAS_OPCUA
+    // Idempotent: if we're already connecting to or connected on the
+    // requested URL just keep the existing client. Re-pressing the UI
+    // button should not silently tear the live session down.
+    if (client_ && (state_ == State::Connecting || state_ == State::Connected)
+        && serverUrl_ == endpointUrl) {
+        return;
+    }
     serverUrl_ = endpointUrl;
     if (client_) destroyClient();
 

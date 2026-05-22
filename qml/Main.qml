@@ -526,7 +526,7 @@ Rectangle {
                 color: pal.text
                 selectByMouse: true
                 clip: true
-                text: "opc.tcp://192.168.1.245:4840"
+                text: "opc.tcp://192.168.0.2:4840"
             }
         }
 
