@@ -51,6 +51,11 @@ class DiagnosticsModel : public QObject
     // when running on the development host with no Lavichip devices present).
     Q_PROPERTY(bool        simulatorMode  READ simulatorMode  CONSTANT)
 
+    // OPC UA / PLC link
+    Q_PROPERTY(QString     plcState       READ plcState       NOTIFY plcStateChanged)
+    Q_PROPERTY(QString     plcServerUrl   READ plcServerUrl   NOTIFY plcStateChanged)
+    Q_PROPERTY(QString     plcLastError   READ plcLastError   NOTIFY plcStateChanged)
+
 public:
     explicit DiagnosticsModel(QObject* parent = nullptr);
 
@@ -84,6 +89,11 @@ public:
     bool simulatorMode();
     QVariantList defaultKeyMap() const;
 
+    // OPC UA
+    QString plcState() const;
+    QString plcServerUrl() const;
+    QString plcLastError() const;
+
 public slots:
     void setLed(int port, bool on);
     void allLedsOff();
@@ -95,11 +105,21 @@ public slots:
     void simSetDeadman(bool s1, bool s2);
     void simKeyEvent(int code, bool pressed);
 
+    // PLC / OPC UA
+    void plcConnect(const QString& endpointUrl);
+    void plcDisconnect();
+    void plcReadNode(const QString& nodeId);
+    void plcSubscribeNode(const QString& nodeId);
+
 signals:
     void ledChanged();
     void switchChanged();
     void backlightChanged();
     void keyEvent();
+    void plcStateChanged();
+    void plcValueRead(QString nodeId, QVariant value);
+    void plcValueChanged(QString nodeId, QVariant value);
+    void plcReadFailed(QString nodeId, QString reason);
 };
 
 } // namespace smbq6r

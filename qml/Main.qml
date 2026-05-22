@@ -69,7 +69,8 @@ Rectangle {
                     { name: "SWT",  ok: diag.switchReady    },
                     { name: "BUZ",  ok: diag.buzzerReady    },
                     { name: "BL",   ok: diag.backlightReady },
-                    { name: "KEYS", ok: diag.keysReady      }
+                    { name: "KEYS", ok: diag.keysReady      },
+                    { name: "PLC",  ok: diag.plcState === "Connected" }
                 ]
                 Column {
                     spacing: 3
@@ -103,7 +104,8 @@ Rectangle {
         id: leftPanel
         x: 12; y: header.height + 12
         width: 514
-        height: root.height - header.height - 24
+        // Reserve 80 px at the bottom for the PLC link strip.
+        height: root.height - header.height - 24 - 80
 
         // Mode switch — three pills stacked vertically (no overlap)
         Card {
@@ -348,7 +350,7 @@ Rectangle {
         x: leftPanel.x + leftPanel.width + 12
         y: header.height + 12
         width: root.width - x - 12
-        height: root.height - header.height - 24
+        height: root.height - header.height - 24 - 80
 
         // LEDs
         Card {
@@ -469,6 +471,105 @@ Rectangle {
                     font.pixelSize: 12; color: pal.textSub
                 }
             }
+        }
+    }
+
+    // ───── PLC LINK STRIP ──────────────────────────────────────────
+    // OPC UA client status + connect controls. Spans the full screen
+    // width at the bottom of the screen. The PlcLink worker lives on
+    // its own QThread; clicking Connect kicks off an async attempt and
+    // the status text updates via plcStateChanged.
+    Rectangle {
+        id: plcStrip
+        x: 12
+        y: root.height - 80 + 8
+        width: root.width - 24
+        height: 64
+        color: pal.cardBg
+        border.color: pal.border; border.width: 1
+        radius: 6
+
+        // Status pill (left)
+        Rectangle {
+            id: plcPill
+            x: 12
+            anchors.verticalCenter: parent.verticalCenter
+            width: 130; height: 36; radius: 4
+            color: diag.plcState === "Connected"  ? pal.success
+                 : diag.plcState === "Connecting" ? pal.warning
+                 : diag.plcState === "Error"      ? pal.danger
+                                                  : "#9ca3af"
+            Text {
+                anchors.centerIn: parent
+                text: "PLC: " + diag.plcState
+                font.pixelSize: 12; font.bold: true
+                color: "#ffffff"
+            }
+        }
+
+        // Endpoint URL editor (middle)
+        Rectangle {
+            id: urlBox
+            x: plcPill.x + plcPill.width + 12
+            anchors.verticalCenter: parent.verticalCenter
+            width: 480; height: 36; radius: 4
+            color: "#f9fafb"
+            border.color: urlField.activeFocus ? pal.accent : pal.border
+            border.width: 1
+
+            TextInput {
+                id: urlField
+                anchors.fill: parent
+                anchors.leftMargin: 10; anchors.rightMargin: 10
+                verticalAlignment: TextInput.AlignVCenter
+                font.pixelSize: 13; font.family: "monospace"
+                color: pal.text
+                selectByMouse: true
+                clip: true
+                text: "opc.tcp://192.168.1.245:4840"
+            }
+        }
+
+        // Connect / Disconnect button (right of URL)
+        Rectangle {
+            id: connectBtn
+            x: urlBox.x + urlBox.width + 12
+            anchors.verticalCenter: parent.verticalCenter
+            width: 110; height: 36; radius: 4
+            property bool connectedState: diag.plcState === "Connected"
+                                       || diag.plcState === "Connecting"
+            color: connectMa.pressed
+                 ? Qt.darker(connectedState ? pal.danger : pal.accent, 1.15)
+                 : (connectedState ? pal.danger : pal.accent)
+            Text {
+                anchors.centerIn: parent
+                text: connectBtn.connectedState ? "Disconnect" : "Connect"
+                font.pixelSize: 12; font.bold: true
+                color: "#ffffff"
+            }
+            MouseArea {
+                id: connectMa
+                anchors.fill: parent
+                onClicked: {
+                    if (connectBtn.connectedState) diag.plcDisconnect()
+                    else                           diag.plcConnect(urlField.text)
+                }
+            }
+        }
+
+        // Last error text (right side, fills remaining space)
+        Text {
+            anchors.left: connectBtn.right; anchors.leftMargin: 16
+            anchors.right: parent.right; anchors.rightMargin: 14
+            anchors.verticalCenter: parent.verticalCenter
+            text: diag.plcState === "Error" && diag.plcLastError.length > 0
+                ? "Error: " + diag.plcLastError
+                : diag.plcServerUrl.length > 0
+                    ? "Endpoint: " + diag.plcServerUrl
+                    : "OPC UA client idle — paste CodeSys endpoint above and Connect."
+            font.pixelSize: 11; font.family: "monospace"
+            color: diag.plcState === "Error" ? pal.danger : pal.textMuted
+            elide: Text.ElideRight
         }
     }
 

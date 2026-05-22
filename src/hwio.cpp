@@ -4,6 +4,7 @@
 #include "buzzer_controller.h"
 #include "backlight_controller.h"
 #include "matrix_keys_monitor.h"
+#include "plc_link.h"
 
 #include <QDebug>
 
@@ -21,13 +22,15 @@ HwIo::HwIo()
     , buzzer_   (std::make_unique<BuzzerController>())
     , backlight_(std::make_unique<BacklightController>())
     , matrix_   (std::make_unique<MatrixKeysMonitor>())
+    , plc_      (std::make_unique<PlcLink>())
 {
     qInfo() << "HwIo: initialised"
             << "leds="      << (led_->isReady()       ? "ok" : "FAIL")
             << "switches="  << (switch_->isReady()    ? "ok" : "FAIL")
             << "buzzer="    << (buzzer_->isReady()    ? "ok" : "FAIL")
             << "backlight=" << (backlight_->isReady() ? "ok" : "FAIL")
-            << "keys="      << (matrix_->isReady()    ? "ok" : "FAIL");
+            << "keys="      << (matrix_->isReady()    ? "ok" : "FAIL")
+            << "plc="       << "idle";
 }
 
 HwIo::~HwIo() = default;

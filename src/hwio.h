@@ -9,6 +9,7 @@ class SwitchMonitor;
 class BuzzerController;
 class BacklightController;
 class MatrixKeysMonitor;
+class PlcLink;
 
 // Singleton facade owning every kernel-device file descriptor. The vendor
 // Lavichip drivers tolerate exactly one open() per process; centralising
@@ -26,6 +27,7 @@ public:
     BuzzerController&    buzzer()     { return *buzzer_; }
     BacklightController& backlight()  { return *backlight_; }
     MatrixKeysMonitor&   matrixKeys() { return *matrix_; }
+    PlcLink&             plc()        { return *plc_; }
 
     HwIo(const HwIo&) = delete;
     HwIo& operator=(const HwIo&) = delete;
@@ -39,6 +41,7 @@ private:
     std::unique_ptr<BuzzerController>    buzzer_;
     std::unique_ptr<BacklightController> backlight_;
     std::unique_ptr<MatrixKeysMonitor>   matrix_;
+    std::unique_ptr<PlcLink>             plc_;
 };
 
 } // namespace smbq6r

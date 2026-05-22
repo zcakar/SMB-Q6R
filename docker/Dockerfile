@@ -39,7 +39,9 @@ RUN dpkg --add-architecture arm64 && \
         qml-module-qtquick-layouts:arm64 \
         qml-module-qtquick2:arm64 \
         libqt5quickcontrols2-5:arm64 \
-        ca-certificates && \
+        ca-certificates \
+        git \
+        python3 && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /src

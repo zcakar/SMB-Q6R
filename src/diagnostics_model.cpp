@@ -6,6 +6,7 @@
 #include "buzzer_controller.h"
 #include "backlight_controller.h"
 #include "matrix_keys_monitor.h"
+#include "plc_link.h"
 
 namespace smbq6r {
 
@@ -21,6 +22,17 @@ DiagnosticsModel::DiagnosticsModel(QObject* parent)
             this, &DiagnosticsModel::switchChanged);
     connect(&io.matrixKeys(), &MatrixKeysMonitor::keyEvent,
             this, &DiagnosticsModel::keyEvent);
+
+    // PlcLink lives on its own QThread; signals cross thread boundaries
+    // automatically because Qt's auto-connection is queued for that case.
+    connect(&io.plc(), &PlcLink::stateChanged,
+            this, [this](PlcLink::State) { emit plcStateChanged(); });
+    connect(&io.plc(), &PlcLink::valueRead,
+            this, &DiagnosticsModel::plcValueRead);
+    connect(&io.plc(), &PlcLink::valueChanged,
+            this, &DiagnosticsModel::plcValueChanged);
+    connect(&io.plc(), &PlcLink::readFailed,
+            this, &DiagnosticsModel::plcReadFailed);
 }
 
 int DiagnosticsModel::ledMask()  const { return HwIo::instance().leds().activeMask(); }
@@ -118,6 +130,48 @@ void DiagnosticsModel::simSetDeadman(bool s1, bool s2)
 void DiagnosticsModel::simKeyEvent(int code, bool pressed)
 {
     HwIo::instance().matrixKeys().simulateKey(code, pressed);
+}
+
+QString DiagnosticsModel::plcState() const
+{
+    switch (HwIo::instance().plc().state()) {
+        case PlcLink::State::Disconnected:  return QStringLiteral("Disconnected");
+        case PlcLink::State::Connecting:    return QStringLiteral("Connecting");
+        case PlcLink::State::Connected:     return QStringLiteral("Connected");
+        case PlcLink::State::Reconnecting:  return QStringLiteral("Reconnecting");
+        case PlcLink::State::Error:         return QStringLiteral("Error");
+    }
+    return QStringLiteral("Unknown");
+}
+
+QString DiagnosticsModel::plcServerUrl() const
+{
+    return HwIo::instance().plc().serverUrl();
+}
+
+QString DiagnosticsModel::plcLastError() const
+{
+    return HwIo::instance().plc().lastError();
+}
+
+void DiagnosticsModel::plcConnect(const QString& endpointUrl)
+{
+    HwIo::instance().plc().connectToServer(endpointUrl);
+}
+
+void DiagnosticsModel::plcDisconnect()
+{
+    HwIo::instance().plc().disconnectFromServer();
+}
+
+void DiagnosticsModel::plcReadNode(const QString& nodeId)
+{
+    HwIo::instance().plc().readNode(nodeId);
+}
+
+void DiagnosticsModel::plcSubscribeNode(const QString& nodeId)
+{
+    HwIo::instance().plc().subscribeNode(nodeId);
 }
 
 } // namespace smbq6r
