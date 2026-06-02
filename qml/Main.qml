@@ -98,14 +98,59 @@ Rectangle {
         }
     }
 
+    // ───── TAB BAR ─────────────────────────────────────────────────
+    // Sits flush under the header. Two tabs: HARDWARE (the existing
+    // diagnostic panels) and PLC CONSOLE (the OPC UA page). Tabs are
+    // 220 px wide each so the labels read comfortably; an unselected
+    // tab is dark to look "inactive", the selected tab is white with
+    // a blue underline to match the header accent.
+    Rectangle {
+        id: tabBar
+        x: 0; y: header.height
+        width: parent.width; height: 44
+        color: "#1f2937"
+
+        Row {
+            anchors.left: parent.left; anchors.leftMargin: 12
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: 0
+            Repeater {
+                model: [
+                    { key: "hardware", label: "HARDWARE" },
+                    { key: "plc",      label: "PLC CONSOLE" }
+                ]
+                Rectangle {
+                    width: 220; height: 36; radius: 4
+                    property bool active: root.currentPage === modelData.key
+                    color: active        ? "#ffffff"
+                         : tabMa.pressed ? "#374151"
+                                         : "transparent"
+                    border.color: active ? pal.accent : "transparent"
+                    border.width: active ? 2 : 0
+                    Text {
+                        anchors.centerIn: parent
+                        text: modelData.label
+                        font.pixelSize: 13; font.bold: true; font.letterSpacing: 1.2
+                        color: parent.active ? pal.text : "#cbd5e1"
+                    }
+                    MouseArea {
+                        id: tabMa
+                        anchors.fill: parent
+                        onClicked: root.currentPage = modelData.key
+                    }
+                }
+            }
+        }
+    }
+
     // ───── LEFT PANEL ──────────────────────────────────────────────
     // Mode switch + deadman + buzzer/backlight + history
     Item {
         id: leftPanel
-        x: 12; y: header.height + 12
+        x: 12; y: header.height + tabBar.height + 12
         width: 514
-        // Reserve 80 px at the bottom for the PLC link strip.
-        height: root.height - header.height - 24 - 80
+        height: root.height - header.height - tabBar.height - 24
+        visible: root.currentPage === "hardware"
 
         // Mode switch — three pills stacked vertically (no overlap)
         Card {
@@ -348,9 +393,10 @@ Rectangle {
     Item {
         id: rightPanel
         x: leftPanel.x + leftPanel.width + 12
-        y: header.height + 12
+        y: header.height + tabBar.height + 12
         width: root.width - x - 12
-        height: root.height - header.height - 24 - 80
+        height: root.height - header.height - tabBar.height - 24
+        visible: root.currentPage === "hardware"
 
         // LEDs
         Card {
@@ -474,127 +520,8 @@ Rectangle {
         }
     }
 
-    // ───── PLC LINK STRIP ──────────────────────────────────────────
-    // OPC UA client status + connect controls. Spans the full screen
-    // width at the bottom of the screen. The PlcLink worker lives on
-    // its own QThread; clicking Connect kicks off an async attempt and
-    // the status text updates via plcStateChanged.
-    Rectangle {
-        id: plcStrip
-        x: 12
-        y: root.height - 80 + 8
-        width: root.width - 24
-        height: 64
-        color: pal.cardBg
-        border.color: pal.border; border.width: 1
-        radius: 6
-
-        // Status pill (left)
-        Rectangle {
-            id: plcPill
-            x: 12
-            anchors.verticalCenter: parent.verticalCenter
-            width: 130; height: 36; radius: 4
-            color: diag.plcState === "Connected"  ? pal.success
-                 : diag.plcState === "Connecting" ? pal.warning
-                 : diag.plcState === "Error"      ? pal.danger
-                                                  : "#9ca3af"
-            Text {
-                anchors.centerIn: parent
-                text: "PLC: " + diag.plcState
-                font.pixelSize: 12; font.bold: true
-                color: "#ffffff"
-            }
-        }
-
-        // Endpoint URL editor (middle)
-        Rectangle {
-            id: urlBox
-            x: plcPill.x + plcPill.width + 12
-            anchors.verticalCenter: parent.verticalCenter
-            width: 480; height: 36; radius: 4
-            color: "#f9fafb"
-            border.color: urlField.activeFocus ? pal.accent : pal.border
-            border.width: 1
-
-            TextInput {
-                id: urlField
-                anchors.fill: parent
-                anchors.leftMargin: 10; anchors.rightMargin: 10
-                verticalAlignment: TextInput.AlignVCenter
-                font.pixelSize: 13; font.family: "monospace"
-                color: pal.text
-                selectByMouse: true
-                clip: true
-                text: "opc.tcp://192.168.0.2:4840"
-            }
-        }
-
-        // Connect / Disconnect button (right of URL)
-        Rectangle {
-            id: connectBtn
-            x: urlBox.x + urlBox.width + 12
-            anchors.verticalCenter: parent.verticalCenter
-            width: 110; height: 36; radius: 4
-            property bool connectedState: diag.plcState === "Connected"
-                                       || diag.plcState === "Connecting"
-            color: connectMa.pressed
-                 ? Qt.darker(connectedState ? pal.danger : pal.accent, 1.15)
-                 : (connectedState ? pal.danger : pal.accent)
-            Text {
-                anchors.centerIn: parent
-                text: connectBtn.connectedState ? "Disconnect" : "Connect"
-                font.pixelSize: 12; font.bold: true
-                color: "#ffffff"
-            }
-            MouseArea {
-                id: connectMa
-                anchors.fill: parent
-                onClicked: {
-                    if (connectBtn.connectedState) diag.plcDisconnect()
-                    else                           diag.plcConnect(urlField.text)
-                }
-            }
-        }
-
-        // Open the dedicated PLC Console overlay (subscribed values, read/
-        // write, browse). Anything beyond bare connection management lives
-        // there to keep this strip and the rest of the screen uncluttered.
-        Rectangle {
-            id: consoleBtn
-            x: connectBtn.x + connectBtn.width + 8
-            anchors.verticalCenter: parent.verticalCenter
-            width: 140; height: 36; radius: 4
-            color: consoleMa.pressed ? Qt.darker("#0f172a", 1.2) : "#1e3a8a"
-            border.color: "#0f172a"; border.width: 1
-            Text {
-                anchors.centerIn: parent
-                text: "PLC Console  >"
-                font.pixelSize: 12; font.bold: true
-                color: "#ffffff"
-            }
-            MouseArea {
-                id: consoleMa
-                anchors.fill: parent
-                onClicked: root.plcPageOpen = true
-            }
-        }
-
-        // Last error text (right side, fills remaining space)
-        Text {
-            anchors.left: consoleBtn.right; anchors.leftMargin: 16
-            anchors.right: parent.right; anchors.rightMargin: 14
-            anchors.verticalCenter: parent.verticalCenter
-            text: diag.plcState === "Error" && diag.plcLastError.length > 0
-                ? "Error: " + diag.plcLastError
-                : diag.plcServerUrl.length > 0
-                    ? "Endpoint: " + diag.plcServerUrl
-                    : "OPC UA client idle — paste CodeSys endpoint above and Connect."
-            font.pixelSize: 11; font.family: "monospace"
-            color: diag.plcState === "Error" ? pal.danger : pal.textMuted
-            elide: Text.ElideRight
-        }
-    }
+    // (PLC connection + value monitor lives on the PLC tab now; the
+    // dedicated PlcPage at the bottom of this file is the entire UI.)
 
     // ───── Reactive state ──────────────────────────────────────────
     property int     ledShadow:      0
@@ -608,7 +535,9 @@ Rectangle {
     // Fixed jog-button map from DiagnosticsModel — live-captured codes.
     property var     keyMap:         diag.defaultKeyMap
     property bool    buzzerHeld:     false
-    property bool    plcPageOpen:    false   // PLC Console overlay visibility
+    // Top-level page selector — "hardware" (default) or "plc"; bound to
+    // each view's visible, and reflected in the tab bar's pressed state.
+    property string  currentPage:    "hardware"
 
     Connections {
         target: diag
@@ -635,16 +564,19 @@ Rectangle {
         root.keyHistArr     = diag.keyHistory
     }
 
-    // ───── PLC CONSOLE OVERLAY ──────────────────────────────────────
-    // Renders on top of everything when the operator taps "PLC Console >"
-    // on the link strip. The component is loaded lazily so the main
-    // screen stays light when the page isn't in use.
+    // ───── PLC CONSOLE PAGE ─────────────────────────────────────────
+    // Tab content for the "PLC CONSOLE" tab. Loaded lazily so the page
+    // doesn't sit in memory while the operator is on the hardware tab.
+    // Fills the entire body below the tab bar; PlcPage handles all of
+    // its own internal layout including the connect controls.
     Loader {
         id: plcPageLoader
-        anchors.fill: parent
-        active:  root.plcPageOpen
+        x: 0
+        y: header.height + tabBar.height
+        width: parent.width
+        height: parent.height - header.height - tabBar.height
+        active:  root.currentPage === "plc"
         visible: active
         source:  "qrc:/qml/PlcPage.qml"
-        z: 100
     }
 }

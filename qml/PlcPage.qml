@@ -108,80 +108,114 @@ Rectangle {
         logAppend("PLC Console opened")
     }
 
-    // Swallow clicks so the underlying main UI doesn't react.
+    // Swallow clicks so the underlying main UI doesn't react. The hardware
+    // tab is hidden when this page is active, but click-through can still
+    // hit anything sharing the same z order.
     MouseArea { anchors.fill: parent; onClicked: { /* eat */ } }
 
-    // ─── Header ──────────────────────────────────────────────────
+    // ─── Connect bar (page header) ───────────────────────────────
+    // Pulls in the connection controls that used to live on Main.qml's
+    // bottom strip. State pill on the left, editable endpoint URL in the
+    // middle, Connect/Disconnect on the right.
     Rectangle {
-        id: header
-        x: 0; y: 0
-        width: parent.width; height: 70
+        id: connectBar
+        x: 12; y: 12
+        width: parent.width - 24; height: 60
         color: pal.cardBg
         border.color: pal.cardEdge; border.width: 1
+        radius: 6
 
-        Column {
-            anchors.left: parent.left; anchors.leftMargin: 24
-            anchors.verticalCenter: parent.verticalCenter
-            spacing: 4
-            Text {
-                text: "PLC CONSOLE"
-                font.pixelSize: 20; font.bold: true; font.letterSpacing: 1.2
-                color: pal.text
-            }
-            Text {
-                text: diag.plcServerUrl.length > 0
-                    ? "Endpoint: " + diag.plcServerUrl
-                    : "OPC UA client idle"
-                font.pixelSize: 12; font.family: "monospace"
-                color: pal.textSub
-            }
-        }
-
-        // State pill (centre-right)
+        // State pill — colour codes the link status at a glance.
         Rectangle {
             id: statePill
-            anchors.right: closeBtn.left; anchors.rightMargin: 16
+            x: 12
             anchors.verticalCenter: parent.verticalCenter
-            width: 160; height: 42; radius: 6
-            color: diag.plcState === "Connected" ? pal.success
+            width: 160; height: 36; radius: 4
+            color: diag.plcState === "Connected"  ? pal.success
                  : diag.plcState === "Connecting" ? pal.warning
-                 : diag.plcState === "Error"     ? pal.danger
+                 : diag.plcState === "Error"      ? pal.danger
                                                   : "#475569"
             Text {
                 anchors.centerIn: parent
                 text: "PLC: " + diag.plcState
-                font.pixelSize: 14; font.bold: true
+                font.pixelSize: 13; font.bold: true; font.letterSpacing: 0.6
                 color: "#ffffff"
             }
         }
 
-        // Close (X) button
+        // Endpoint URL editor (monospace, click-to-focus).
         Rectangle {
-            id: closeBtn
-            anchors.right: parent.right; anchors.rightMargin: 16
+            id: urlBox
+            x: statePill.x + statePill.width + 14
             anchors.verticalCenter: parent.verticalCenter
-            width: 42; height: 42; radius: 6
-            color: closeMa.pressed ? pal.danger : pal.cardEdge
+            width: 520; height: 36; radius: 4
+            color: pal.rowOdd
+            border.color: urlField.activeFocus ? pal.accent : pal.cardEdge
+            border.width: 1
+            TextInput {
+                id: urlField
+                anchors.fill: parent
+                anchors.leftMargin: 10; anchors.rightMargin: 10
+                verticalAlignment: TextInput.AlignVCenter
+                font.pixelSize: 13; font.family: "monospace"
+                color: pal.text
+                selectByMouse: true
+                clip: true
+                text: diag.plcServerUrl.length > 0
+                    ? diag.plcServerUrl
+                    : "opc.tcp://192.168.0.2:4840"
+            }
+        }
+
+        // Connect / Disconnect button — colour follows current state.
+        Rectangle {
+            id: connectBtn
+            x: urlBox.x + urlBox.width + 14
+            anchors.verticalCenter: parent.verticalCenter
+            width: 140; height: 36; radius: 4
+            property bool live: diag.plcState === "Connected"
+                             || diag.plcState === "Connecting"
+            color: connectMa.pressed
+                ? Qt.darker(live ? pal.danger : pal.accent, 1.2)
+                : (live ? pal.danger : pal.accent)
             Text {
                 anchors.centerIn: parent
-                text: "✕"
-                font.pixelSize: 20; font.bold: true
-                color: pal.text
+                text: connectBtn.live ? "Disconnect" : "Connect"
+                font.pixelSize: 13; font.bold: true; font.letterSpacing: 0.6
+                color: "#ffffff"
             }
             MouseArea {
-                id: closeMa
+                id: connectMa
                 anchors.fill: parent
-                onClicked: root.plcPageOpen = false
+                onClicked: {
+                    if (connectBtn.live) diag.plcDisconnect()
+                    else                 diag.plcConnect(urlField.text)
+                }
             }
+        }
+
+        // Last-error / endpoint hint fills the remainder.
+        Text {
+            anchors.left: connectBtn.right; anchors.leftMargin: 16
+            anchors.right: parent.right; anchors.rightMargin: 14
+            anchors.verticalCenter: parent.verticalCenter
+            text: diag.plcState === "Error" && diag.plcLastError.length > 0
+                ? "Error: " + diag.plcLastError
+                : diag.plcServerUrl.length > 0
+                    ? "Endpoint: " + diag.plcServerUrl
+                    : "Paste a CodeSys OPC UA endpoint above and Connect."
+            font.pixelSize: 11; font.family: "monospace"
+            color: diag.plcState === "Error" ? pal.danger : pal.textSub
+            elide: Text.ElideRight
         }
     }
 
     // ─── Two-column body ────────────────────────────────────────
     Item {
         id: body
-        x: 12; y: header.height + 12
+        x: 12; y: connectBar.y + connectBar.height + 12
         width: parent.width - 24
-        height: parent.height - header.height - 24
+        height: parent.height - y - 12
 
         // ─ LEFT: subscribed nodes table ─
         Rectangle {
