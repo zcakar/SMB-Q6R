@@ -72,6 +72,11 @@ public slots:
     // worker re-creates them after a Connected transition).
     void subscribeNode(const QString& nodeId);
 
+    // Write a value to a node. The QVariant's metatype decides the OPC UA
+    // type sent on the wire: bool → Boolean, int → Int32, double → Double,
+    // QString → String. Anything else falls back to a writeFailed signal.
+    void writeNode(const QString& nodeId, const QVariant& value);
+
     // Recursively browse the server namespace from the Objects folder
     // and emit nodeDiscovered() for each node found, up to maxNodes
     // total and maxDepth levels deep. Used to discover the exact node
@@ -95,6 +100,9 @@ signals:
     // the immediate children of Objects, 1 for their children, etc.
     void nodeDiscovered(QString nodeId, QString browseName, int depth);
 
+    void writeSucceeded(QString nodeId);
+    void writeFailed(QString nodeId, QString reason);
+
 private slots:
     // Worker-thread slot: pump the open62541 client event loop.
     void onIterate();
@@ -104,6 +112,7 @@ private slots:
     void doRead(QString nodeId);
     void doSubscribe(QString nodeId);
     void doBrowse(int maxDepth, int maxNodes);
+    void doWrite(QString nodeId, QVariant value);
 
 private:
     static UA_Client* makeClient();

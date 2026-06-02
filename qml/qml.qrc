@@ -8,6 +8,7 @@
         <file>PressButton.qml</file>
         <file>KeyCell.qml</file>
         <file>SimulatorBezel.qml</file>
+        <file>PlcPage.qml</file>
     </qresource>
     <qresource prefix="/fonts">
         <file alias="DejaVuSans.ttf">fonts/DejaVuSans.ttf</file>

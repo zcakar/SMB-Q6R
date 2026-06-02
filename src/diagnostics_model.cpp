@@ -29,12 +29,30 @@ DiagnosticsModel::DiagnosticsModel(QObject* parent)
             this, [this](PlcLink::State) { emit plcStateChanged(); });
     connect(&io.plc(), &PlcLink::valueRead,
             this, &DiagnosticsModel::plcValueRead);
-    connect(&io.plc(), &PlcLink::valueChanged,
-            this, &DiagnosticsModel::plcValueChanged);
+    // Cache subscribed values in plcValues_ as they arrive, then emit
+    // plcValuesChanged so QML rebinds. The original plcValueChanged
+    // signal is also forwarded for fine-grained listeners.
+    connect(&io.plc(), &PlcLink::valueChanged, this,
+            [this](const QString& nodeId, const QVariant& v) {
+                plcValues_.insert(nodeId, v);
+                emit plcValueChanged(nodeId, v);
+                emit plcValuesChanged();
+            });
     connect(&io.plc(), &PlcLink::readFailed,
             this, &DiagnosticsModel::plcReadFailed);
     connect(&io.plc(), &PlcLink::nodeDiscovered,
             this, &DiagnosticsModel::plcNodeDiscovered);
+    connect(&io.plc(), &PlcLink::writeSucceeded,
+            this, &DiagnosticsModel::plcWriteSucceeded);
+    connect(&io.plc(), &PlcLink::writeFailed,
+            this, &DiagnosticsModel::plcWriteFailed);
+
+    // Clear the cached snapshot whenever the link goes down so QML
+    // doesn't display stale data while the user is reconnecting.
+    connect(&io.plc(), &PlcLink::disconnected, this, [this]() {
+        plcValues_.clear();
+        emit plcValuesChanged();
+    });
 }
 
 int DiagnosticsModel::ledMask()  const { return HwIo::instance().leds().activeMask(); }
@@ -179,6 +197,11 @@ void DiagnosticsModel::plcSubscribeNode(const QString& nodeId)
 void DiagnosticsModel::plcBrowse()
 {
     HwIo::instance().plc().browseNamespace();
+}
+
+void DiagnosticsModel::plcWriteNode(const QString& nodeId, const QVariant& value)
+{
+    HwIo::instance().plc().writeNode(nodeId, value);
 }
 
 } // namespace smbq6r

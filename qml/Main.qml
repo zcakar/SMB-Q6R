@@ -557,9 +557,32 @@ Rectangle {
             }
         }
 
+        // Open the dedicated PLC Console overlay (subscribed values, read/
+        // write, browse). Anything beyond bare connection management lives
+        // there to keep this strip and the rest of the screen uncluttered.
+        Rectangle {
+            id: consoleBtn
+            x: connectBtn.x + connectBtn.width + 8
+            anchors.verticalCenter: parent.verticalCenter
+            width: 140; height: 36; radius: 4
+            color: consoleMa.pressed ? Qt.darker("#0f172a", 1.2) : "#1e3a8a"
+            border.color: "#0f172a"; border.width: 1
+            Text {
+                anchors.centerIn: parent
+                text: "PLC Console  >"
+                font.pixelSize: 12; font.bold: true
+                color: "#ffffff"
+            }
+            MouseArea {
+                id: consoleMa
+                anchors.fill: parent
+                onClicked: root.plcPageOpen = true
+            }
+        }
+
         // Last error text (right side, fills remaining space)
         Text {
-            anchors.left: connectBtn.right; anchors.leftMargin: 16
+            anchors.left: consoleBtn.right; anchors.leftMargin: 16
             anchors.right: parent.right; anchors.rightMargin: 14
             anchors.verticalCenter: parent.verticalCenter
             text: diag.plcState === "Error" && diag.plcLastError.length > 0
@@ -585,6 +608,7 @@ Rectangle {
     // Fixed jog-button map from DiagnosticsModel — live-captured codes.
     property var     keyMap:         diag.defaultKeyMap
     property bool    buzzerHeld:     false
+    property bool    plcPageOpen:    false   // PLC Console overlay visibility
 
     Connections {
         target: diag
@@ -609,5 +633,18 @@ Rectangle {
         root.enableByteText = diag.enableByte
         root.blValue        = diag.backlight
         root.keyHistArr     = diag.keyHistory
+    }
+
+    // ───── PLC CONSOLE OVERLAY ──────────────────────────────────────
+    // Renders on top of everything when the operator taps "PLC Console >"
+    // on the link strip. The component is loaded lazily so the main
+    // screen stays light when the page isn't in use.
+    Loader {
+        id: plcPageLoader
+        anchors.fill: parent
+        active:  root.plcPageOpen
+        visible: active
+        source:  "qrc:/qml/PlcPage.qml"
+        z: 100
     }
 }

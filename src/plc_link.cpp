@@ -208,6 +208,13 @@ void PlcLink::browseNamespace(int maxDepth, int maxNodes)
                               Q_ARG(int, maxDepth), Q_ARG(int, maxNodes));
 }
 
+void PlcLink::writeNode(const QString& nodeId, const QVariant& value)
+{
+    QMetaObject::invokeMethod(this, "doWrite", Qt::QueuedConnection,
+                              Q_ARG(QString, nodeId),
+                              Q_ARG(QVariant, value));
+}
+
 void PlcLink::doConnect(QString endpointUrl)
 {
 #ifdef SMB_Q6R_HAS_OPCUA
@@ -341,6 +348,77 @@ void PlcLink::doSubscribe(QString nodeId)
     reconfigureSubscriptions();
 #else
     Q_UNUSED(nodeId)
+#endif
+}
+
+void PlcLink::doWrite(QString nodeId, QVariant value)
+{
+#ifdef SMB_Q6R_HAS_OPCUA
+    if (!client_ || state_ != State::Connected) {
+        emit writeFailed(nodeId, QStringLiteral("not connected"));
+        return;
+    }
+    bool ok = false;
+    UA_NodeId nid = parseNodeId(nodeId, &ok);
+    if (!ok) {
+        emit writeFailed(nodeId, QStringLiteral("bad node id format"));
+        return;
+    }
+
+    // Cover the variant types CodeSys symbol exports actually expose for
+    // ReadWrite scalars: bool, int (DINT in PLC), double (LREAL),
+    // string. Anything else fails fast — fancier conversions can come
+    // when we have a concrete use case.
+    UA_Variant uv;
+    UA_Variant_init(&uv);
+
+    UA_Boolean ub; UA_Int32 ui32; UA_Double ud; UA_String ustr;
+    switch (static_cast<QMetaType::Type>(value.userType())) {
+        case QMetaType::Bool:
+            ub = value.toBool();
+            UA_Variant_setScalar(&uv, &ub, &UA_TYPES[UA_TYPES_BOOLEAN]);
+            break;
+        case QMetaType::Int:
+        case QMetaType::UInt:
+        case QMetaType::LongLong:
+            ui32 = static_cast<UA_Int32>(value.toInt());
+            UA_Variant_setScalar(&uv, &ui32, &UA_TYPES[UA_TYPES_INT32]);
+            break;
+        case QMetaType::Double:
+        case QMetaType::Float:
+            ud = value.toDouble();
+            UA_Variant_setScalar(&uv, &ud, &UA_TYPES[UA_TYPES_DOUBLE]);
+            break;
+        case QMetaType::QString: {
+            const QByteArray bytes = value.toString().toUtf8();
+            ustr.length = static_cast<size_t>(bytes.size());
+            ustr.data = const_cast<UA_Byte*>(
+                reinterpret_cast<const UA_Byte*>(bytes.constData()));
+            UA_Variant_setScalar(&uv, &ustr, &UA_TYPES[UA_TYPES_STRING]);
+            const UA_StatusCode rc = UA_Client_writeValueAttribute(client_, nid, &uv);
+            UA_NodeId_clear(&nid);
+            if (rc == UA_STATUSCODE_GOOD) emit writeSucceeded(nodeId);
+            else emit writeFailed(nodeId, QString::fromLatin1(UA_StatusCode_name(rc)));
+            return;
+        }
+        default:
+            UA_NodeId_clear(&nid);
+            emit writeFailed(nodeId,
+                QStringLiteral("unsupported QVariant type: %1").arg(value.typeName()));
+            return;
+    }
+
+    const UA_StatusCode rc = UA_Client_writeValueAttribute(client_, nid, &uv);
+    UA_NodeId_clear(&nid);
+    if (rc == UA_STATUSCODE_GOOD) {
+        emit writeSucceeded(nodeId);
+    } else {
+        emit writeFailed(nodeId, QString::fromLatin1(UA_StatusCode_name(rc)));
+    }
+#else
+    Q_UNUSED(nodeId)
+    Q_UNUSED(value)
+    emit writeFailed(nodeId, QStringLiteral("Built without OPC UA support"));
 #endif
 }
 

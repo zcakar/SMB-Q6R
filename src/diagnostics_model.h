@@ -4,6 +4,7 @@
 #include <QString>
 #include <QStringList>
 #include <QVariantList>
+#include <QVariantMap>
 
 namespace smbq6r {
 
@@ -55,6 +56,10 @@ class DiagnosticsModel : public QObject
     Q_PROPERTY(QString     plcState       READ plcState       NOTIFY plcStateChanged)
     Q_PROPERTY(QString     plcServerUrl   READ plcServerUrl   NOTIFY plcStateChanged)
     Q_PROPERTY(QString     plcLastError   READ plcLastError   NOTIFY plcStateChanged)
+    // Live snapshot of every subscribed node's last known value. Keyed by
+    // OPC UA node id string ("ns=4;s=|var|MAT LC-C07.Application.GVL.Enable").
+    // Emits plcValuesChanged on every update so QML bindings refresh.
+    Q_PROPERTY(QVariantMap plcValues      READ plcValues      NOTIFY plcValuesChanged)
 
 public:
     explicit DiagnosticsModel(QObject* parent = nullptr);
@@ -93,6 +98,7 @@ public:
     QString plcState() const;
     QString plcServerUrl() const;
     QString plcLastError() const;
+    QVariantMap plcValues() const { return plcValues_; }
 
 public slots:
     void setLed(int port, bool on);
@@ -110,6 +116,7 @@ public slots:
     void plcDisconnect();
     void plcReadNode(const QString& nodeId);
     void plcSubscribeNode(const QString& nodeId);
+    void plcWriteNode(const QString& nodeId, const QVariant& value);
     void plcBrowse();
 
 signals:
@@ -122,6 +129,12 @@ signals:
     void plcValueChanged(QString nodeId, QVariant value);
     void plcReadFailed(QString nodeId, QString reason);
     void plcNodeDiscovered(QString nodeId, QString browseName, int depth);
+    void plcValuesChanged();
+    void plcWriteSucceeded(QString nodeId);
+    void plcWriteFailed(QString nodeId, QString reason);
+
+private:
+    QVariantMap plcValues_;
 };
 
 } // namespace smbq6r
