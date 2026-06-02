@@ -58,29 +58,48 @@ Item {
         color: "#ffffff"
         opacity: 0.10
     }
-    // Axis label (top of face)
-    Text {
-        anchors.top: face.top; anchors.topMargin: 6
-        anchors.horizontalCenter: face.horizontalCenter
-        text: cell.axisLabel
-        font.pixelSize: 11; font.bold: true; font.letterSpacing: 0.5
-        color: cell.justPressed ? "#bbf7d0" : "#9aa1ac"
-    }
-    // Large +/− glyph
-    Text {
-        anchors.centerIn: face
-        text: cell.sign
-        font.pixelSize: face.height * 0.50
-        font.bold: true
-        color: "white"
-    }
-    // Code readout (bottom of face)
-    Text {
-        anchors.bottom: face.bottom; anchors.bottomMargin: 6
-        anchors.horizontalCenter: face.horizontalCenter
-        text: cell.code >= 0 ? ("code " + cell.code) : "—"
-        font.pixelSize: 10; font.family: "monospace"
-        color: cell.justPressed ? "#bbf7d0" : "#9aa1ac"
+    // Three stacked rows inside the face: axis label · big sign · code.
+    // Using fractional heights keeps everything in its own band even when
+    // the cell shrinks to ~50 px (anchors-based positioning was letting
+    // the centred sign overlap the top/bottom labels at small sizes).
+    Item {
+        anchors.fill: face
+        anchors.margins: 4
+
+        Text {
+            id: axisRow
+            width: parent.width
+            height: parent.height * 0.26
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment:   Text.AlignVCenter
+            text: cell.axisLabel
+            font.pixelSize: Math.max(10, Math.round(parent.height * 0.18))
+            font.bold: true; font.letterSpacing: 0.5
+            color: cell.justPressed ? "#bbf7d0" : "#9aa1ac"
+        }
+        Text {
+            id: signRow
+            anchors.top: axisRow.bottom
+            width: parent.width
+            height: parent.height * 0.48
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment:   Text.AlignVCenter
+            text: cell.sign
+            font.pixelSize: Math.round(height * 0.85)
+            font.bold: true
+            color: "white"
+        }
+        Text {
+            anchors.top: signRow.bottom
+            width: parent.width
+            height: parent.height * 0.26
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment:   Text.AlignVCenter
+            text: cell.code >= 0 ? ("code " + cell.code) : "—"
+            font.pixelSize: Math.max(9, Math.round(parent.height * 0.14))
+            font.family: "monospace"
+            color: cell.justPressed ? "#bbf7d0" : "#9aa1ac"
+        }
     }
     MouseArea {
         anchors.fill: parent
