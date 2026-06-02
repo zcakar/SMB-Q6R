@@ -1,11 +1,12 @@
 project:
   name: SMB-Q6R
   description: Teach Pendant UI for 6-axis Fanuc 6R robot driven by CodeSys SMB-MAT-LC-C07 PLC
-  version: 0.0.1
+  version: 0.1.0
   language: C++17
-  status: phase-0-bootstrapping
+  status: phase-1.5-plc-bootstrapped   # hw mapping + OPC UA client (connect/read/write/browse) live
   origin: New project, kicked off 2026-05-11
   owner_email: zzafercakar@gmail.com
+  github: https://github.com/zcakar/SMB-Q6R
 
 target_hardware:
   vendor: Shenzhen Lavichip Technology Co., Ltd
@@ -94,32 +95,57 @@ architecture:
 tech_stack:
   language: C++17
   build_system: CMake 3.16+
-  ui_toolkit: Qt 5.15.10 (Widgets primary candidate; QML alternative)
-  protocol_candidates:
-    - name: Modbus TCP
-      library: libmodbus
-      pros: simple, broadly supported by CodeSys, easy debugging
-      cons: no real-time guarantee, limited type system
-    - name: OPC UA
-      library: open62541
-      pros: modern, type-rich, structured, browseable
-      cons: heavier client, learning curve
-    - name: CodeSys symbolic ADS-like
-      library: codesys-runtime SDK if licensed
-      pros: native to PLC vendor
-      cons: licensing, less portable
+  ui_toolkit: Qt 5.15.10 / QtQuick 2 (no QuickControls2 — vendor image lacks the module)
+  protocol_selected:
+    name: OPC UA
+    library: open62541 v1.3.10 LTS
+    integration: CMake FetchContent, statically linked into smb_q6r
+    rationale: Modern, type-safe, no extra .deb on the device, browseable namespace
+  protocol_candidates_rejected:
+    - { name: Modbus TCP, why: no type system, harder to map CodeSys symbols }
+    - { name: CodeSys ADS-like, why: licensing + vendor lock-in }
   testing: GoogleTest (planned)
   ci: GitHub Actions self-hosted (planned)
 
 plc:
   model: SMB-MAT-LC-C07
-  runtime: CodeSys
-  role: low-level motion control, kinematics, servo command, EtherCAT master (likely)
-  interface: TCP/IP from teach pendant; protocol TBD (see protocol_candidates)
+  runtime: CodeSys V3.5 SP20 Patch 2+
+  runtime_id: 3.5.18.50
+  role: low-level motion control, kinematics, servo command, EtherCAT master
+  interface:
+    transport: TCP (Ethernet)
+    protocol: OPC UA
+    endpoint: opc.tcp://192.168.0.2:4840
+    server_endpoint_url_published: opc.tcp://SMB:4840  # CodeSys publishes hostname; harmless warn
+    security_policy: None
+    user_token: Anonymous
+  network:
+    plc_ip: 192.168.0.2
+    pendant_ip_on_plc_subnet: 192.168.0.245  # alias on eth1, persisted via netplan
+  symbols_config:
+    file: vendor-demos/CodeSysSP20_3Axis_CNC_SMB_LAZER_17052025_1620.Device.Application.xml
+    project_name: CodeSysSP20_3Axis_CNC_SMB_LAZER_17052025_1620
+    application_name: Application
+    plc_device_name: MAT LC-C07
+    setting_flags: SupportOPCUA, XmlIncludeNodeFlags, XmlIncludeComments
+    gvl_groups:
+      - Constants
+      - GVL
+      - GVL_Control_Var
+      - IoConfig_Globals
+      - IoConfig_Globals_Mapping
+  node_id_format:
+    application_root: ns=4;s=|var|MAT LC-C07.Application
+    plc_device:       ns=4;s=|plc|MAT LC-C07
+    variable_pattern: ns=4;s=|var|MAT LC-C07.Application.<GVL>.<VarName>
+    example: ns=4;s=|var|MAT LC-C07.Application.GVL.Enable
+  known_issues:
+    - struct/function-block nodes (e.g. IoConfig_Globals.Device, type T_CAADiagDeviceDefault)
+      return BadAttributeIdInvalid when monitored directly; subscribe to scalar children instead
   notes:
-    - CodeSys typically exposes Modbus TCP server and OPC UA server
-    - Symbols/variables in PLC project must be exposed via the chosen protocol
-    - Watchdog/heartbeat between pendant and PLC is mandatory
+    - CodeSys typically exposes Modbus TCP server and OPC UA server; we use OPC UA
+    - Symbols visible in the OPC UA namespace must be flagged "Exported" in CodeSys symbol config
+    - Watchdog/heartbeat between pendant and PLC is mandatory (planned, not yet implemented)
 
 robot:
   topology: 6-axis articulated (Fanuc 6R)

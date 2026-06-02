@@ -25,12 +25,16 @@ takım çalışmasının temelini atmak.
 
 ---
 
-## Faz 1 — Build Sistemi + Donanım Diagnostiği
+## Faz 1 — Build Sistemi + Donanım Diagnostiği  ✅ TAMAMLANDI (+Faz 1.5)
 
 **Amaç:** Cross-compile pipeline'ı tamamlamak ve cihazın tüm donanımını
 **vendor referans demosuyla karşılaştırmalı** doğrulamak. Phase 1 sonu
 itibarıyla bizim app fiziksel donanımı vendor'ın kendi demolarıyla 1:1
 aynı şekilde yönetebiliyor olmalı.
+
+> **Phase 1.5 ek:** Donanım haritalama bittikten sonra OPC UA istemcisi
+> de aynı plan altında eklendi. Detay: [PHASE1_STATUS.md](PHASE1_STATUS.md)
+> ve [PLC_INTEGRATION.md](PLC_INTEGRATION.md).
 
 **Yapılanlar (2026-05-11 → 2026-05-12)**
 - ✅ Docker Focal-arm64 builder image (`smb-q6r-builder:focal-arm64`)
@@ -47,14 +51,29 @@ aynı şekilde yönetebiliyor olmalı.
 - ✅ udev permission setup (plugdev grubu)
 - ✅ GitHub remote `git@github.com:zcakar/SMB-Q6R.git` (push edildi)
 
-**Bekleyen**
-- ⏳ LED port → fiziksel LED haritalama (kullanıcı testi)
-- ⏳ Matrix key code → fiziksel pozisyon haritalama (auto-learn ile)
-- ⏳ Iter F: Wheel handler `/dev/input/event1` (rotary)
-- ⏳ Iter G: SystemInfo widget
-- ⏳ Karşılaştırma matrisi (`PHASE1_TEST_PLAN.md` §2-3) sonuçları
-     ENGINEERING_LOG'a yazılır
-- ⏳ Phase 1 closeout entry'si
+**Phase 1 Closeout (2026-05-22 → 2026-06-02)**
+- ✅ LED port → fiziksel LED haritası: 0=ENABLE, 1=SERVO, 2=STOP (canlı doğrulandı)
+- ✅ Matrix key 14 KEY_* kodu live-capture sonrası **hardcoded** baked-in
+- ✅ DejaVu Sans QRC'ye gömüldü (tofu glyph fix)
+- ✅ systemd --user service + autostart + cold-boot test geçti
+- ✅ Sim mode bezel (host-side virtual pendant)
+- ✅ Tab UI: HARDWARE + PLC CONSOLE
+- ✅ Network alias 192.168.0.245/24 netplan persistent
+
+**Phase 1.5 — OPC UA Bootstrap (2026-05-22 → 2026-06-02)**
+- ✅ open62541 v1.3.10 LTS, statik link via FetchContent
+- ✅ PlcLink worker QThread + queued signals
+- ✅ Connect/Disconnect + namespace browse + subscribe + read/write
+- ✅ Live bağlantı doğrulandı: opc.tcp://192.168.0.2:4840
+- ✅ CodeSys node ID formatı keşfedildi:
+     `ns=4;s=|var|MAT LC-C07.Application.<GVL>.<Var>`
+- ✅ PlcPage: tablo + add form + log + 12 default watch
+
+**Bekleyen (deferred)**
+- ⏳ Iter F: Wheel handler `/dev/input/event1` (rotary) — Phase 4 jog ile birleşecek
+- ⏳ Iter G: SystemInfo widget — düşük öncelik
+- ⏳ PLC heartbeat → Phase 2 başında
+- ⏳ Reconnect-on-disconnect → Phase 2 başında
 
 **Bitiş Kriteri (18 madde)**
 1. Cross-compile pipeline tekrarlanabilir
@@ -75,29 +94,38 @@ aynı şekilde yönetebiliyor olmalı.
 
 ---
 
-## Faz 2 — PLC Haberleşme
+## Faz 2 — PLC Haberleşme  🟡 KISMEN (1.5 bootstrap'te scaffolding bitti)
 
 **Amaç:** PLC ile iletişimi kurmak; bağlantı kaybı, heartbeat, alarm
 yayılımı işliyor olmak.
 
-**Yapılacaklar**
-- PLC dokümanı + sembol haritası edin (CodeSys projesini PLC'den çek)
-- Protokol seçimi: Modbus TCP (varsayılan) veya OPC UA
-- `PlcLink` sınıfı (Qt-thread tabanlı, sinyal/slot ile UI'ya iletir):
-  - `connect(host, port)`
-  - `disconnect()`
-  - `readU16(address) → quint16`
-  - `writeU16(address, value)`
-  - `readFloat32(address) → float`
-  - `subscribeChanges(address_range)` — sürekli okuma
-- Heartbeat thread (100 ms periyot, monoton counter)
-- Bağlantı durum widget'i (üst bar) — yeşil/sarı/kırmızı
+**Phase 1.5 sırasında erken tamamlanan**
+- ✅ Protokol seçimi: **OPC UA** (open62541 v1.3.10 statik)
+- ✅ PlcLink Qt-thread tabanlı, sinyal/slot ile UI'ya iletir:
+  - `connectToServer(url)` / `disconnectFromServer()`
+  - `readNode(nodeId)` / `subscribeNode(nodeId)` / `writeNode(nodeId, QVariant)`
+  - `browseNamespace(maxDepth, maxNodes)`
+- ✅ Bağlantı durum widget'i (PLC tab connectBar + header'da PLC pill)
+- ✅ PLC ile canlı session: opc.tcp://192.168.0.2:4840 (`SessionState: Activated`)
+- ✅ CodeSys symbols XML alındı, node ID formatı çözüldü
+
+**Phase 2'de yapılacaklar**
+- ⏳ Heartbeat (100 ms periyot, monoton counter, `GVL.PendantHeartbeat` ↔ `GVL.PlcHeartbeat`)
+- ⏳ Reconnect-on-disconnect (exponential backoff)
+- ⏳ Jog komutları: pendant fiziksel butonu → PLC `GVL_Control_Var.jog_Negative_X` vb.
+- ⏳ Mode switch state writeback → `GVL.Sys_Mode`
+- ⏳ LED durumu PLC'den subscribe (Enable/Servo/Stop sinyalleri)
+- ⏳ Joint position display (PLC'den live X/Y/Z + Cartesian)
+- ⏳ Alarm view (PLC alarm GVL listesi)
 
 **Bitiş Kriteri**
 - Cihaz PLC ile heartbeat alıyor/veriyor, bağlantı kaybında UI uyarıyor,
-  PLC'ye yazılan bir test değeri sembol monitöründe görünüyor.
+  bir fiziksel jog butonuna basınca PLC değişkeni gerçekten değişiyor.
 
-**Tahmini Süre:** 3–4 hafta
+**Tahmini Süre:** 2–3 hafta (scaffolding hazır olduğu için kısaltıldı)
+
+**İlgili doküman:** [`PLC_INTEGRATION.md`](PLC_INTEGRATION.md) — node ID formatı,
+PlcLink API, default watch listesi, watchdog planı.
 
 ---
 
@@ -196,15 +224,16 @@ modellenmesi; ihlallerin UI'da ve PLC'ye doğru yansıması.
 ## Faz 8 — Üretim Hazırlığı
 
 **Yapılacaklar**
-- systemd servis dosyası, otomatik başlat
-- Kiosk modu (XFCE oturum, sadece bizim uygulama)
-- Dokunmatik gizli imleç (`QT_QPA_FB_HIDECURSOR=1`)
-- Boot logo (`/run/media/mmcblk1p1/logo.bmp`)
-- Watchdog: uygulama crash → systemd otomatik restart
-- Versiyon yönetimi (uygulama içi "Hakkında" + git tag → versiyon)
-- Kullanıcı kılavuzu (Türkçe) — `docs/USER_MANUAL.md`
+- [x] systemd servis dosyası, otomatik başlat — `scripts/systemd/smb-q6r.service` + `scripts/install-autostart.sh` (2026-05-13)
+- [x] Kiosk modu (XFCE oturum, sadece bizim uygulama) — showFullScreen() + systemd
+- [ ] Dokunmatik gizli imleç (`QT_QPA_FB_HIDECURSOR=1`)
+- [ ] Boot logo (`/run/media/mmcblk1p1/logo.bmp`)
+- [x] Watchdog: uygulama crash → systemd otomatik restart — `Restart=on-failure` + 5/60s burst cap
+- [ ] PLC↔pendant heartbeat (Phase 2 ile birlikte yapılacak)
+- [ ] Versiyon yönetimi (uygulama içi "Hakkında" + git tag → versiyon)
+- [ ] Kullanıcı kılavuzu (Türkçe) — `docs/USER_MANUAL.md`
 
-**Tahmini Süre:** 3 hafta
+**Tahmini Süre:** 3 hafta (yarısı erken bitti — Phase 1.5 OPC UA bootstrap sırasında autostart + crash watchdog tamamlandı)
 
 ---
 
