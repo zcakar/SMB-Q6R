@@ -1,4 +1,9 @@
 cmake_minimum_required(VERSION 3.16)
+
+# Always emit compile_commands.json — VSCode's C/C++ extension and
+# clangd both consume it to resolve includes for IntelliSense, which
+# kills the red-underline storm under qmlls/clangd otherwise.
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON CACHE BOOL "" FORCE)
 project(smb_q6r
     VERSION 0.1.0
     DESCRIPTION "SMB-Q6R Teach Pendant UI for 6-axis Fanuc 6R robot"
@@ -102,7 +107,7 @@ if(SMB_Q6R_OPCUA)
     target_compile_definitions(smb_q6r PRIVATE SMB_Q6R_HAS_OPCUA=1)
 endif()
 
-target_include_directories(smb_q6r PRIVATE src)
+target_include_directories(smb_q6r PRIVATE src src/generated)
 
 # ---------- Vendor reference demos (optional) ----------
 # Build the seven vendor HWInterfaceDemo apps as side-by-side oracles. See

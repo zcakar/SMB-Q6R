@@ -23,6 +23,15 @@
 import QtQuick 2.15
 import QtQml 2.15
 
+// Generated symbol map. Source of truth: symbols/symbols.json (picker
+// output). Refresh with scripts/regen-symbols.sh after each re-pick so
+// PlcSymbols.globalVars.GVL.Enable etc. stays in sync with the PLC.
+//
+// Directory import (instead of a C++-registered module) — the qmldir at
+// qrc:/qml/generated/qmldir declares PlcSymbols as a singleton, which
+// both the runtime engine and qmlls's static analysis resolve.
+import "./generated"
+
 Rectangle {
     id: page
     color: "#0f172a"           // very dark slate to make the overlay feel modal
@@ -49,30 +58,35 @@ Rectangle {
     //     persists across page reloads anyway). For host development
     //     without a server, this list still renders — pills just stay
     //     gray until a value arrives.
+    //
+    // All entries resolve through PlcSymbols (qml/generated/PlcSymbols.qml,
+    // produced from symbols/symbols.json by scripts/regen-symbols.py).
+    // Add a new tag to the watch list: pick it in the symbol picker, run
+    // regen, then reference PlcSymbols.<group>.<name> here.
     property var nodes: [
-        { id: "ns=4;s=|var|MAT LC-C07.Application.GVL.Enable",
+        { id: PlcSymbols.globalVars.GVL.Enable,
           label: "GVL.Enable",  writable: true,  kind: "bool" },
-        { id: "ns=4;s=|var|MAT LC-C07.Application.IoConfig_Globals_Mapping.EMG_01",
+        { id: PlcSymbols.ioConfigGlobalsMapping.EMG_01,
           label: "EMG_01",      writable: false, kind: "bool" },
-        { id: "ns=4;s=|var|MAT LC-C07.Application.IoConfig_Globals_Mapping.Door_Left_10",
+        { id: PlcSymbols.ioConfigGlobalsMapping.Door_Left_10,
           label: "Door_Left",   writable: false, kind: "bool" },
-        { id: "ns=4;s=|var|MAT LC-C07.Application.IoConfig_Globals_Mapping.Door_Right_11",
+        { id: PlcSymbols.ioConfigGlobalsMapping.Door_Right_11,
           label: "Door_Right",  writable: false, kind: "bool" },
-        { id: "ns=4;s=|var|MAT LC-C07.Application.IoConfig_Globals_Mapping.Limit_Xpos_06",
+        { id: PlcSymbols.ioConfigGlobalsMapping.Limit_Xpos_06,
           label: "Limit_Xpos",  writable: false, kind: "bool" },
-        { id: "ns=4;s=|var|MAT LC-C07.Application.IoConfig_Globals_Mapping.Limit_xneg_07",
+        { id: PlcSymbols.ioConfigGlobalsMapping.Limit_xneg_07,
           label: "Limit_Xneg",  writable: false, kind: "bool" },
-        { id: "ns=4;s=|var|MAT LC-C07.Application.IoConfig_Globals_Mapping.Limit_Ypos_05",
+        { id: PlcSymbols.ioConfigGlobalsMapping.Limit_Ypos_05,
           label: "Limit_Ypos",  writable: false, kind: "bool" },
-        { id: "ns=4;s=|var|MAT LC-C07.Application.IoConfig_Globals_Mapping.Limit_Yneg_04",
+        { id: PlcSymbols.ioConfigGlobalsMapping.Limit_Yneg_04,
           label: "Limit_Yneg",  writable: false, kind: "bool" },
-        { id: "ns=4;s=|var|MAT LC-C07.Application.IoConfig_Globals_Mapping.Limit_Zneg_03",
+        { id: PlcSymbols.ioConfigGlobalsMapping.Limit_Zneg_03,
           label: "Limit_Zneg",  writable: false, kind: "bool" },
-        { id: "ns=4;s=|var|MAT LC-C07.Application.IoConfig_Globals_Mapping.emg_stop_Q00",
+        { id: PlcSymbols.ioConfigGlobalsMapping.emg_stop_Q00,
           label: "emg_stop",    writable: true,  kind: "bool" },
-        { id: "ns=4;s=|var|MAT LC-C07.Application.IoConfig_Globals_Mapping.laser_ctrl_Q03",
+        { id: PlcSymbols.ioConfigGlobalsMapping.laser_ctrl_Q03,
           label: "laser_ctrl",  writable: true,  kind: "bool" },
-        { id: "ns=4;s=|var|MAT LC-C07.Application.IoConfig_Globals_Mapping.pano_ayd_Q04",
+        { id: PlcSymbols.ioConfigGlobalsMapping.pano_ayd_Q04,
           label: "pano_ayd",    writable: true,  kind: "bool" }
     ]
 
@@ -94,13 +108,13 @@ Rectangle {
 
     Connections {
         target: diag
-        onPlcStateChanged: {
+        function onPlcStateChanged() {
             page.logAppend("state -> " + diag.plcState)
             if (diag.plcState === "Connected") page.subscribeAll()
         }
-        onPlcWriteSucceeded: page.logAppend("write OK  " + nodeId)
-        onPlcWriteFailed:    page.logAppend("write ERR " + nodeId + " - " + reason)
-        onPlcReadFailed:     page.logAppend("read ERR  " + nodeId + " - " + reason)
+        function onPlcWriteSucceeded(nodeId)         { page.logAppend("write OK  " + nodeId) }
+        function onPlcWriteFailed(nodeId, reason)    { page.logAppend("write ERR " + nodeId + " - " + reason) }
+        function onPlcReadFailed(nodeId, reason)     { page.logAppend("read ERR  " + nodeId + " - " + reason) }
     }
 
     Component.onCompleted: {

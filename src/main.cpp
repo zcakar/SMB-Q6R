@@ -64,6 +64,13 @@ int main(int argc, char* argv[])
     // shadow ours and break every binding inside a delegate.
     view.rootContext()->setContextProperty(QStringLiteral("diag"), &model);
 
+    // PlcSymbols singleton is wired through a qmldir at
+    // qrc:/qml/generated/qmldir (produced by scripts/regen-symbols.py),
+    // and PlcPage.qml reaches it via ``import "./generated"``. Going
+    // through qmldir (rather than qmlRegisterSingletonType) means qmlls
+    // sees the type during static analysis too, so the IDE doesn't flag
+    // ``PlcSymbols.globalVars.GVL.Enable`` as an unqualified access.
+
     // On the actual pendant we go straight into the touchscreen UI and
     // run fullscreen as a kiosk. On a dev host with no Lavichip devices
     // we wrap Main.qml inside SimulatorBezel.qml, which draws the

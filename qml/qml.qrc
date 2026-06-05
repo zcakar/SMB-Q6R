@@ -9,6 +9,8 @@
         <file>KeyCell.qml</file>
         <file>SimulatorBezel.qml</file>
         <file>PlcPage.qml</file>
+        <file>generated/PlcSymbols.qml</file>
+        <file>generated/qmldir</file>
     </qresource>
     <qresource prefix="/fonts">
         <file alias="DejaVuSans.ttf">fonts/DejaVuSans.ttf</file>

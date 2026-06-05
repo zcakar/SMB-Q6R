@@ -1,7 +1,21 @@
 # Build artifacts
 build/
 build-*/
+build-host/
 out/
+
+# Generated symbol bindings — produced from symbols/symbols.json by
+# scripts/regen-symbols.py. Stay out of git so we don't churn diffs on
+# every re-pick; commit the source of truth (symbols/symbols.json) instead.
+src/generated/
+qml/generated/
+
+# Per-connect PLC browse snapshots — pulled from the pendant on demand
+# via scripts/pick-symbols.sh --pull. Large (~1 MB each) and regenerated
+# every time the picker fetches them.
+.ai/plc-browse-*.json
+.ai/plc-browse-*.txt
+.ai/plc-browse-latest.json
 *.o
 *.obj
 *.a
@@ -32,7 +46,14 @@ ui_*.h
 .qtc_clangd/
 
 # IDE
-.vscode/
+# Ignore everything inside .vscode/ but share the C/C++ IntelliSense
+# config — points clangd/cpptools at our Qt5 + src/generated/ paths so
+# the red-underline storm in main.cpp goes away without each contributor
+# reconfiguring locally. The `.vscode/*` (not `.vscode/`) is required so
+# the negation below is honoured — git doesn't recurse into ignored
+# directories, but a `dir/*` pattern leaves the directory itself unignored.
+.vscode/*
+!.vscode/c_cpp_properties.json
 .vs/
 .idea/
 *.swp

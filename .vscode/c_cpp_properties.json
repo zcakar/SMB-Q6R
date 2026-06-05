@@ -1,0 +1,35 @@
+{
+    "version": 4,
+    "configurations": [
+        {
+            "name": "smb-q6r-host",
+            "comment": "Host-side IntelliSense for the pendant C++ tree. Cross-compile happens inside Docker (scripts/docker-build.sh); paths below point at the host's Qt5 install so VSCode can resolve includes without the aarch64 sysroot. The picker tool builds against Qt6 — its compile_commands.json lives under build-host/symbol-picker/ once that build has run.",
+            "includePath": [
+                "${workspaceFolder}/src",
+                "${workspaceFolder}/src/generated",
+                "/usr/include/x86_64-linux-gnu/qt5",
+                "/usr/include/x86_64-linux-gnu/qt5/QtCore",
+                "/usr/include/x86_64-linux-gnu/qt5/QtGui",
+                "/usr/include/x86_64-linux-gnu/qt5/QtQml",
+                "/usr/include/x86_64-linux-gnu/qt5/QtQuick",
+                "/usr/include/x86_64-linux-gnu/qt5/QtNetwork",
+                "/usr/include/x86_64-linux-gnu/qt6",
+                "/usr/include/x86_64-linux-gnu/qt6/QtCore",
+                "/usr/include/x86_64-linux-gnu/qt6/QtGui",
+                "/usr/include/x86_64-linux-gnu/qt6/QtWidgets",
+                "/usr/include/x86_64-linux-gnu/qt6/QtConcurrent"
+            ],
+            "defines": [
+                "QT_CORE_LIB",
+                "QT_GUI_LIB",
+                "QT_QML_LIB",
+                "QT_QUICK_LIB",
+                "QT_NETWORK_LIB",
+                "SMB_Q6R_HAS_OPCUA=1"
+            ],
+            "cppStandard": "c++17",
+            "intelliSenseMode": "linux-gcc-x64",
+            "compileCommands": "${workspaceFolder}/build-arm64/compile_commands.json"
+        }
+    ]
+}

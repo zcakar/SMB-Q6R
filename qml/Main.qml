@@ -541,16 +541,16 @@ Rectangle {
 
     Connections {
         target: diag
-        onLedChanged:        root.ledShadow = diag.ledMask
-        onSwitchChanged: {
+        function onLedChanged()       { root.ledShadow = diag.ledMask }
+        function onSwitchChanged() {
             root.modeText       = diag.mode
             root.modeByteText   = diag.modeByte
             root.enS1           = diag.enableS1
             root.enS2           = diag.enableS2
             root.enableByteText = diag.enableByte
         }
-        onBacklightChanged:  root.blValue = diag.backlight
-        onKeyEvent:          root.keyHistArr = diag.keyHistory
+        function onBacklightChanged() { root.blValue    = diag.backlight }
+        function onKeyEvent()         { root.keyHistArr = diag.keyHistory }
     }
 
     Component.onCompleted: {
