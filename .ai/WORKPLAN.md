@@ -110,6 +110,12 @@ yayılımı işliyor olmak.
 - ✅ CodeSys symbols XML alındı, node ID formatı çözüldü
 
 **Phase 2'de yapılacaklar**
+- ⏳ **Dinamik namespace resolution** — bağlantıda `Server_NamespaceArray`
+  (`ns=0;i=2255`) oku, URI → index map'i çıkar, NodeId string'lerini
+  runtime'da `ns=N` ile substitue et. Şu an sabit `ns=4` varsayılıyor;
+  CodeSys library/runtime değişikliği index'i kaydırabilir. Sembol listesi
+  URI + identifier ikilisi olarak tutulmalı (örn. URI =
+  `CODESYSSPV3/PLC/Application`, identifier = `|var|MAT LC-C07.Application.GVL.Enable`).
 - ⏳ Heartbeat (100 ms periyot, monoton counter, `GVL.PendantHeartbeat` ↔ `GVL.PlcHeartbeat`)
 - ⏳ Reconnect-on-disconnect (exponential backoff)
 - ⏳ Jog komutları: pendant fiziksel butonu → PLC `GVL_Control_Var.jog_Negative_X` vb.

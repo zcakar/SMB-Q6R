@@ -52,6 +52,17 @@ public:
     PlcLink(const PlcLink&) = delete;
     PlcLink& operator=(const PlcLink&) = delete;
 
+    // One node in the snapshot built by doBrowse() and rendered into the
+    // /userfs/smb-q6r/plc-browse.txt tree. Public so the anonymous-namespace
+    // tree renderer in plc_link.cpp can take it by reference.
+    struct BrowseEntry {
+        QString parentNodeId;   // canonical "ns=N;..." of parent, "" for seed
+        QString nodeId;         // canonical "ns=N;..." of this node
+        QString browseName;
+        QString nodeClass;      // "Object" / "Variable" / "Method" / ...
+        int     depth = 0;      // 0 = seed, 1 = its children, etc.
+    };
+
     State   state()      const { return state_; }
     QString serverUrl()  const { return serverUrl_; }
     QString lastError()  const { return lastError_; }
@@ -77,12 +88,14 @@ public slots:
     // QString → String. Anything else falls back to a writeFailed signal.
     void writeNode(const QString& nodeId, const QVariant& value);
 
-    // Recursively browse the server namespace from the Objects folder
-    // and emit nodeDiscovered() for each node found, up to maxNodes
-    // total and maxDepth levels deep. Used to discover the exact node
-    // ID strings CodeSys exposes for the symbol configuration we're
-    // pointed at (varies slightly between CODESYS versions).
-    void browseNamespace(int maxDepth = 5, int maxNodes = 250);
+    // Recursively browse the server namespace and emit nodeDiscovered()
+    // for each node found, up to maxNodes total and maxDepth levels
+    // deep. The browse seeds itself from the auto-discovered CodeSys
+    // application root (|var|<Device>.Application) when possible, falling
+    // back to the standard Objects folder otherwise. On every successful
+    // browse the full tree is also dumped to /userfs/smb-q6r/plc-browse.txt
+    // in a human-readable form (namespace table + indented tree).
+    void browseNamespace(int maxDepth = 8, int maxNodes = 5000);
 
 signals:
     // Lifecycle.
@@ -120,6 +133,25 @@ private:
     void reconfigureSubscriptions();   // recreate after reconnect
     void destroyClient();
 
+    // Post-connect bootstrap: populates namespaceIndexToUri_ from the
+    // standard Server_NamespaceArray node (ns=0;i=2255). Required because
+    // namespace indices are server-assigned and may shift between CodeSys
+    // runtime / library configurations.
+    void readNamespaceArray();
+
+    // Short browse from the Objects folder that locates the first node
+    // whose string identifier matches "|var|...Application". Sets
+    // appRootNodeId_ and appNamespaceIndex_ on success so the deep
+    // browse can seed itself there and skip the PLCopen type system.
+    void findApplicationRoot();
+
+    // Render the browse snapshot to /userfs/smb-q6r/plc-browse.txt with a
+    // header, namespace table, indented unicode-branch tree, and summary
+    // counts. Called at the tail of every successful doBrowse().
+    void writeBrowseDump(const QList<BrowseEntry>& entries,
+                        const QHash<QString, QList<int>>& childrenByParent,
+                        qint64 elapsedMs);
+
     QThread* workerThread_ = nullptr;
     QTimer*  iterateTimer_ = nullptr;
 
@@ -127,6 +159,15 @@ private:
     State   state_     = State::Disconnected;
     QString serverUrl_;
     QString lastError_;
+
+    // Server namespace table — populated on connect, cleared on disconnect.
+    QHash<int, QString> namespaceIndexToUri_;
+
+    // CodeSys application root discovered post-connect. Empty if we
+    // couldn't find a |var|...Application node — browse falls back to
+    // the standard Objects folder in that case.
+    QString appRootNodeId_;
+    int     appNamespaceIndex_ = -1;
 
     // SubscriptionId -> nodeId map, so we can route DataChange callbacks
     // back to a meaningful string for the UI. The integer key is what

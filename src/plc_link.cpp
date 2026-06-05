@@ -4,6 +4,14 @@
 #include <QTimer>
 #include <QDebug>
 #include <QMetaObject>
+#include <QFile>
+#include <QDir>
+#include <QTextStream>
+#include <QDateTime>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <algorithm>
 
 #ifdef SMB_Q6R_HAS_OPCUA
 extern "C" {
@@ -127,6 +135,71 @@ void dataChangeTrampoline(UA_Client* /*client*/, UA_UInt32 /*subId*/,
         Q_ARG(QVariant, variantFromUa(value->value)));
 }
 
+// Tree-dump scaffolding ----------------------------------------------------
+// doBrowse builds a flat list of PlcLink::BrowseEntry while doing BFS plus
+// a parentNodeId -> [child entry indices] map; renderTreeNode() walks that
+// map to produce the unicode-branch indented form written to plc-browse.txt.
+// BrowseEntry itself lives in plc_link.h so writeBrowseDump() can be a
+// member function.
+
+QString nodeClassToString(UA_NodeClass c)
+{
+    switch (c) {
+        case UA_NODECLASS_OBJECT:        return QStringLiteral("Object");
+        case UA_NODECLASS_VARIABLE:      return QStringLiteral("Variable");
+        case UA_NODECLASS_METHOD:        return QStringLiteral("Method");
+        case UA_NODECLASS_OBJECTTYPE:    return QStringLiteral("ObjectType");
+        case UA_NODECLASS_VARIABLETYPE:  return QStringLiteral("VariableType");
+        case UA_NODECLASS_REFERENCETYPE: return QStringLiteral("ReferenceType");
+        case UA_NODECLASS_DATATYPE:      return QStringLiteral("DataType");
+        case UA_NODECLASS_VIEW:          return QStringLiteral("View");
+        default:                         return QStringLiteral("?");
+    }
+}
+
+void renderTreeNode(QTextStream& out,
+                    const QList<PlcLink::BrowseEntry>& entries,
+                    const QHash<QString, QList<int>>& childrenByParent,
+                    int idx,
+                    const QString& linePrefix,
+                    const QString& childPrefix)
+{
+    const PlcLink::BrowseEntry& e = entries[idx];
+
+    // Left column: tree-branches + browse name, padded to a fixed width so
+    // the node IDs line up. We pad in QChar units (not bytes) — fine for
+    // ASCII identifier names. Box-drawing chars in the prefix count as 1
+    // QChar each.
+    QString left = linePrefix + e.browseName;
+    const int targetWidth = 64;
+    if (left.length() < targetWidth)
+        left.append(QString(targetWidth - left.length(), QLatin1Char(' ')));
+
+    // Output the left column + node id; wrap the class tag and brackets
+    // in a QStringLiteral so the brackets are still QString units (they're
+    // ASCII so the literal is not strictly required, but it keeps the
+    // output path uniformly QString-only).
+    out << left << QStringLiteral("  ") << e.nodeId;
+    if (e.nodeClass != QStringLiteral("Object"))
+        out << QStringLiteral("  [") << e.nodeClass << QStringLiteral("]");
+    out << QStringLiteral("\n");
+
+    // Branch glyphs are pre-materialised once and reused — same UTF-16
+    // round-trip rationale as the header rules above.
+    static const QString branchLast   = QStringLiteral("└─ ");
+    static const QString branchMid    = QStringLiteral("├─ ");
+    static const QString spineLast    = QStringLiteral("   ");
+    static const QString spineMid     = QStringLiteral("│  ");
+
+    const QList<int> kids = childrenByParent.value(e.nodeId);
+    for (int i = 0; i < kids.size(); ++i) {
+        const bool last = (i == kids.size() - 1);
+        renderTreeNode(out, entries, childrenByParent, kids[i],
+                       childPrefix + (last ? branchLast : branchMid),
+                       childPrefix + (last ? spineLast  : spineMid));
+    }
+}
+
 #endif // SMB_Q6R_HAS_OPCUA
 
 } // namespace
@@ -246,12 +319,20 @@ void PlcLink::doConnect(QString endpointUrl)
     emit connected();
 
     iterateTimer_->start();
+
+    // Discover namespace mapping and CodeSys application root BEFORE the
+    // first browse, so the deep walk can seed itself at the real app node
+    // and skip the PLCopen / 3S type-system noise. Both calls are no-ops
+    // on failure (will fall back to dumping the full Objects tree).
+    readNamespaceArray();
+    findApplicationRoot();
+
     reconfigureSubscriptions();
 
-    // Auto-browse: dump the discovered tree to journalctl so the dev side
-    // can copy/paste node IDs into the symbol bindings. Cheap to do once
-    // per connect; the recursion is depth-capped.
-    doBrowse(5, 250);
+    // Auto-browse the full app tree on every connect. Result is emitted
+    // node-by-node via nodeDiscovered(), logged to journalctl, and also
+    // dumped as a human-readable tree to /userfs/smb-q6r/plc-browse.txt.
+    doBrowse(8, 5000);
 #else
     Q_UNUSED(endpointUrl)
     lastError_ = QStringLiteral("Built without OPC UA support");
@@ -279,6 +360,9 @@ void PlcLink::destroyClient()
     client_ = nullptr;
     subscriptionId_ = 0;
     monitoredItems_.clear();
+    namespaceIndexToUri_.clear();
+    appRootNodeId_.clear();
+    appNamespaceIndex_ = -1;
     // Clear dynamic monId_* properties used to route DataChange callbacks.
     const auto names = dynamicPropertyNames();
     for (const auto& name : names) {
@@ -422,6 +506,141 @@ void PlcLink::doWrite(QString nodeId, QVariant value)
 #endif
 }
 
+void PlcLink::readNamespaceArray()
+{
+#ifdef SMB_Q6R_HAS_OPCUA
+    if (!client_) return;
+    namespaceIndexToUri_.clear();
+
+    UA_Variant v;
+    UA_Variant_init(&v);
+    const UA_StatusCode rc = UA_Client_readValueAttribute(
+        client_, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACEARRAY), &v);
+    if (rc != UA_STATUSCODE_GOOD) {
+        qWarning() << "PlcLink: NamespaceArray read failed"
+                   << UA_StatusCode_name(rc);
+        UA_Variant_clear(&v);
+        return;
+    }
+    if (UA_Variant_isScalar(&v) || v.type != &UA_TYPES[UA_TYPES_STRING]) {
+        qWarning() << "PlcLink: NamespaceArray unexpected type";
+        UA_Variant_clear(&v);
+        return;
+    }
+
+    const auto* arr = static_cast<const UA_String*>(v.data);
+    for (size_t i = 0; i < v.arrayLength; ++i) {
+        const QString uri = QString::fromUtf8(
+            reinterpret_cast<const char*>(arr[i].data),
+            static_cast<int>(arr[i].length));
+        namespaceIndexToUri_.insert(static_cast<int>(i), uri);
+        qInfo().noquote() << QString::asprintf(
+            "PlcLink ns[%2d]  %s", static_cast<int>(i), qPrintable(uri));
+    }
+    UA_Variant_clear(&v);
+#endif
+}
+
+void PlcLink::findApplicationRoot()
+{
+#ifdef SMB_Q6R_HAS_OPCUA
+    if (!client_) return;
+    appRootNodeId_.clear();
+    appNamespaceIndex_ = -1;
+
+    // Bootstrap BFS from Objects looking for the first string-identifier
+    // node that starts with "|var|" and ends with ".Application". This is
+    // the CodeSys convention; if the server doesn't expose it (non-CodeSys
+    // backend) the deep browse later just falls back to walking Objects.
+    struct Pending { UA_NodeId id; int depth; };
+    QList<Pending> queue;
+    {
+        UA_NodeId seed = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+        UA_NodeId copy; UA_NodeId_init(&copy);
+        UA_NodeId_copy(&seed, &copy);
+        queue.append({copy, 0});
+    }
+
+    int visited = 0;
+    const int maxVisited = 1000;
+    const int maxDepth   = 6;
+
+    while (!queue.isEmpty() && visited < maxVisited && appRootNodeId_.isEmpty()) {
+        Pending p = queue.takeFirst();
+
+        UA_BrowseRequest req;
+        UA_BrowseRequest_init(&req);
+        req.requestedMaxReferencesPerNode = 0;
+        req.nodesToBrowse = UA_BrowseDescription_new();
+        req.nodesToBrowseSize = 1;
+        UA_NodeId_copy(&p.id, &req.nodesToBrowse[0].nodeId);
+        req.nodesToBrowse[0].browseDirection = UA_BROWSEDIRECTION_FORWARD;
+        req.nodesToBrowse[0].includeSubtypes = true;
+        req.nodesToBrowse[0].referenceTypeId = UA_NODEID_NUMERIC(0, 0);
+        req.nodesToBrowse[0].nodeClassMask   = 0;
+        req.nodesToBrowse[0].resultMask      = UA_BROWSERESULTMASK_BROWSENAME;
+
+        UA_BrowseResponse rsp = UA_Client_Service_browse(client_, req);
+        if (rsp.responseHeader.serviceResult == UA_STATUSCODE_GOOD
+            && rsp.resultsSize > 0) {
+            const UA_BrowseResult& r = rsp.results[0];
+            for (size_t i = 0; i < r.referencesSize
+                 && visited < maxVisited && appRootNodeId_.isEmpty(); ++i) {
+                const UA_ReferenceDescription& ref = r.references[i];
+
+                // Skip standard OPC UA server hierarchy (ns=0 numeric:
+                // Server, Aliases, NamespaceArray, type definitions...).
+                // The CodeSys application always lives in a non-zero
+                // namespace under DeviceSet, and excluding these keeps
+                // our bootstrap budget focused on the path that matters.
+                if (ref.nodeId.nodeId.namespaceIndex == 0
+                    && ref.nodeId.nodeId.identifierType == UA_NODEIDTYPE_NUMERIC) {
+                    continue;
+                }
+                ++visited;
+
+                if (ref.nodeId.nodeId.identifierType == UA_NODEIDTYPE_STRING) {
+                    const QString s = QString::fromUtf8(
+                        reinterpret_cast<const char*>(
+                            ref.nodeId.nodeId.identifier.string.data),
+                        static_cast<int>(
+                            ref.nodeId.nodeId.identifier.string.length));
+                    if (s.startsWith(QStringLiteral("|var|"))
+                        && s.endsWith(QStringLiteral(".Application"))) {
+                        appNamespaceIndex_ = ref.nodeId.nodeId.namespaceIndex;
+                        appRootNodeId_ = QStringLiteral("ns=%1;s=%2")
+                            .arg(appNamespaceIndex_).arg(s);
+                        qInfo().noquote() << "PlcLink: app root ->"
+                                          << appRootNodeId_;
+                        break;
+                    }
+                }
+
+                if (p.depth + 1 < maxDepth) {
+                    UA_NodeId copy; UA_NodeId_init(&copy);
+                    UA_NodeId_copy(&ref.nodeId.nodeId, &copy);
+                    queue.append({copy, p.depth + 1});
+                }
+            }
+        }
+
+        UA_NodeId_clear(&p.id);
+        UA_BrowseResponse_clear(&rsp);
+        UA_BrowseRequest_clear(&req);
+    }
+
+    while (!queue.isEmpty()) {
+        Pending p = queue.takeFirst();
+        UA_NodeId_clear(&p.id);
+    }
+
+    if (appRootNodeId_.isEmpty()) {
+        qWarning() << "PlcLink: no |var|...Application node found —"
+                   << "falling back to Objects browse";
+    }
+#endif
+}
+
 void PlcLink::doBrowse(int maxDepth, int maxNodes)
 {
 #ifdef SMB_Q6R_HAS_OPCUA
@@ -430,88 +649,275 @@ void PlcLink::doBrowse(int maxDepth, int maxNodes)
         return;
     }
 
-    // Iterative BFS so we can cap total nodes without recursion blow-up
-    // on a malformed server. Each queue entry pairs a node we'll browse
-    // with its depth (0 = direct child of Objects).
-    struct Pending { UA_NodeId id; int depth; };
+    // Collected entries get rendered to /userfs/smb-q6r/plc-browse.txt at
+    // the end. childrenByParent indexes into the entries list so the tree
+    // renderer can walk the structure without re-traversing the server.
+    QList<BrowseEntry> entries;
+    QHash<QString, QList<int>> childrenByParent;
+
+    // Choose seed: discovered application root if we have it, otherwise
+    // the standard Objects folder. The latter dumps everything (PLCopen
+    // types + 3S vendor space) — fine as a debugging fallback, slow.
+    UA_NodeId seedId;
+    UA_NodeId_init(&seedId);
+    QString seedIdStr;
+    QString seedName;
+    if (!appRootNodeId_.isEmpty()) {
+        bool ok = false;
+        seedId = parseNodeId(appRootNodeId_, &ok);
+        if (!ok) {
+            qWarning() << "PlcLink browse: bad appRootNodeId_"
+                       << appRootNodeId_;
+            return;
+        }
+        seedIdStr = appRootNodeId_;
+        seedName  = QStringLiteral("Application");
+    } else {
+        UA_NodeId tmp = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+        UA_NodeId_copy(&tmp, &seedId);
+        seedIdStr = QStringLiteral("ns=0;i=85");
+        seedName  = QStringLiteral("Objects");
+    }
+
+    entries.append({QString(), seedIdStr, seedName,
+                    QStringLiteral("Object"), 0});
+
+    struct Pending { UA_NodeId id; QString idStr; int depth; };
     QList<Pending> queue;
+    {
+        UA_NodeId copy; UA_NodeId_init(&copy);
+        UA_NodeId_copy(&seedId, &copy);
+        queue.append({copy, seedIdStr, 0});
+    }
 
-    // Seed: the standard Objects folder, ns=0;i=85.
-    queue.append({UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), -1});
+    const auto t0 = QDateTime::currentMSecsSinceEpoch();
+    int seen = 1;  // the seed itself
 
-    int seen = 0;
     while (!queue.isEmpty() && seen < maxNodes) {
-        const Pending p = queue.takeFirst();
+        Pending p = queue.takeFirst();
 
         UA_BrowseRequest req;
         UA_BrowseRequest_init(&req);
         req.requestedMaxReferencesPerNode = 0;
         req.nodesToBrowse = UA_BrowseDescription_new();
         req.nodesToBrowseSize = 1;
-        // Deep-copy p.id INTO the request so the request owns its own
-        // memory. Shallow-assigning shared string identifiers between
-        // p.id and req.nodesToBrowse[0].nodeId caused a double-free when
-        // both got UA_NodeId_clear()'d at the end of the loop.
         UA_NodeId_copy(&p.id, &req.nodesToBrowse[0].nodeId);
         req.nodesToBrowse[0].browseDirection = UA_BROWSEDIRECTION_FORWARD;
         req.nodesToBrowse[0].includeSubtypes = true;
-        // 0 = "any reference type" — give us organises/hasComponent/hasProperty
         req.nodesToBrowse[0].referenceTypeId = UA_NODEID_NUMERIC(0, 0);
-        req.nodesToBrowse[0].nodeClassMask  = 0;   // any class
+        req.nodesToBrowse[0].nodeClassMask   = 0;
         req.nodesToBrowse[0].resultMask =
             UA_BROWSERESULTMASK_NODECLASS | UA_BROWSERESULTMASK_BROWSENAME;
 
         UA_BrowseResponse rsp = UA_Client_Service_browse(client_, req);
-
         if (rsp.responseHeader.serviceResult == UA_STATUSCODE_GOOD
             && rsp.resultsSize > 0) {
             const UA_BrowseResult& r = rsp.results[0];
             for (size_t i = 0; i < r.referencesSize && seen < maxNodes; ++i) {
                 const UA_ReferenceDescription& ref = r.references[i];
-                // Skip references back to the standard type hierarchy —
-                // CodeSys exposes those under Objects, but we only care
-                // about variables, GVL nodes, and the application tree.
-                if (ref.nodeId.nodeId.namespaceIndex == 0
-                    && ref.nodeId.nodeId.identifierType == UA_NODEIDTYPE_NUMERIC
-                    && ref.nodeId.nodeId.identifier.numeric < 100) {
+                const int childNs = ref.nodeId.nodeId.namespaceIndex;
+                const bool isNumeric =
+                    ref.nodeId.nodeId.identifierType == UA_NODEIDTYPE_NUMERIC;
+
+                // Filter strategy:
+                //   - We always skip ns=0 numeric references (Server,
+                //     Diagnostics, type metadata under the standard space).
+                //   - When the app namespace was discovered, skip any
+                //     reference outside it — this discards the PLCopen
+                //     (ns=2) and 3S (ns=3) type systems that dominated
+                //     the old 250-node budget.
+                //   - When no app ns was discovered we walk everything
+                //     so the dump still produces a useful overview.
+                if (childNs == 0 && isNumeric) continue;
+                if (appNamespaceIndex_ >= 0 && childNs != appNamespaceIndex_)
                     continue;
-                }
+
                 const QString id = nodeIdToString(ref.nodeId.nodeId);
                 const QString name = QString::fromUtf8(
                     reinterpret_cast<const char*>(ref.browseName.name.data),
                     static_cast<int>(ref.browseName.name.length));
-                qInfo().noquote() << QString::asprintf(
-                    "PlcLink browse %2d  %-40s  %s",
-                    p.depth + 1, qPrintable(name), qPrintable(id));
+                const QString cls = nodeClassToString(ref.nodeClass);
+
+                entries.append({p.idStr, id, name, cls, p.depth + 1});
+                childrenByParent[p.idStr].append(entries.size() - 1);
                 emit nodeDiscovered(id, name, p.depth + 1);
                 ++seen;
 
                 if (p.depth + 1 < maxDepth) {
-                    UA_NodeId copy;
-                    UA_NodeId_init(&copy);
+                    UA_NodeId copy; UA_NodeId_init(&copy);
                     UA_NodeId_copy(&ref.nodeId.nodeId, &copy);
-                    queue.append({copy, p.depth + 1});
+                    queue.append({copy, id, p.depth + 1});
                 }
             }
         }
 
-        // p.id was either the seeded Objects literal (no heap) or a copy
-        // we made above. Clearing both shapes is safe.
-        UA_NodeId_clear(const_cast<UA_NodeId*>(&p.id));
+        UA_NodeId_clear(&p.id);
         UA_BrowseResponse_clear(&rsp);
         UA_BrowseRequest_clear(&req);
     }
 
-    qInfo() << "PlcLink: browse complete —" << seen << "nodes emitted";
-    // Drain any leftover pending entries' heap (depth-limited tree may
-    // still have unvisited children when seen >= maxNodes).
     while (!queue.isEmpty()) {
         Pending p = queue.takeFirst();
         UA_NodeId_clear(&p.id);
     }
+    UA_NodeId_clear(&seedId);
+
+    const qint64 elapsedMs = QDateTime::currentMSecsSinceEpoch() - t0;
+    qInfo() << "PlcLink: browse complete —" << seen << "nodes in"
+            << elapsedMs << "ms";
+
+    writeBrowseDump(entries, childrenByParent, elapsedMs);
 #else
     Q_UNUSED(maxDepth)
     Q_UNUSED(maxNodes)
+#endif
+}
+
+void PlcLink::writeBrowseDump(const QList<BrowseEntry>& entries,
+                              const QHash<QString, QList<int>>& childrenByParent,
+                              qint64 elapsedMs)
+{
+#ifdef SMB_Q6R_HAS_OPCUA
+    // Primary target — persistent flash partition next to the binary.
+    // Fall back to /tmp when /userfs is read-only (host dev box).
+    const QString primary = QStringLiteral("/userfs/smb-q6r");
+    QString dir = primary;
+    if (!QDir().mkpath(dir)) {
+        qWarning() << "PlcLink: cannot mkpath" << dir
+                   << "— falling back to /tmp";
+        dir = QStringLiteral("/tmp");
+    }
+    const QString path = dir + QStringLiteral("/plc-browse.txt");
+
+    QFile f(path);
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
+        qWarning() << "PlcLink: open dump file" << path << "failed —"
+                   << f.errorString();
+        return;
+    }
+    QTextStream out(&f);
+    out.setCodec("UTF-8");
+
+    // Wrap every literal that contains non-ASCII glyphs in QStringLiteral.
+    // Qt 5.15's operator<<(QTextStream&, const char*) decodes the bytes
+    // using the local-8bit codec even when setCodec("UTF-8") is active, so
+    // raw "═" literals in a UTF-8 source file end up double-encoded on
+    // disk (E2 95 90 → C3 A2 C2 95 C2 90). QStringLiteral is materialised
+    // as a UTF-16 QString at compile time and round-trips cleanly through
+    // the writer's codec.
+    const QString headerBar = QStringLiteral(
+        "═══════════════════════════════════════════════════════════════");
+    const QString nsRule    = QStringLiteral("───────────────");
+    const QString treeRule  = QStringLiteral("────────────────");
+    const QString sumRule   = QStringLiteral("───────");
+    const QString appMark   = QStringLiteral("  ◄ application");
+
+    // Header
+    const QString ts = QDateTime::currentDateTime()
+        .toString(QStringLiteral("yyyy-MM-dd HH:mm:ss"));
+    out << headerBar << "\n";
+    out << "  SMB-Q6R PLC Browse Snapshot\n";
+    out << "  Generated: " << ts << "\n";
+    out << "  Endpoint:  " << serverUrl_ << "\n";
+    if (!appRootNodeId_.isEmpty())
+        out << "  App root:  " << appRootNodeId_ << "\n";
+    out << headerBar << "\n\n";
+
+    // Namespace table
+    out << "NAMESPACE TABLE\n";
+    out << nsRule << "\n";
+    QList<int> indices = namespaceIndexToUri_.keys();
+    std::sort(indices.begin(), indices.end());
+    for (int idx : indices) {
+        const QString marker = (idx == appNamespaceIndex_) ? appMark : QString();
+        out << QStringLiteral("  ns=%1  %2%3\n")
+                .arg(idx, -3)
+                .arg(namespaceIndexToUri_.value(idx))
+                .arg(marker);
+    }
+    out << "\n";
+
+    // Tree
+    out << "APPLICATION TREE\n";
+    out << treeRule << "\n";
+    if (!entries.isEmpty()) {
+        renderTreeNode(out, entries, childrenByParent, 0, QString(), QString());
+    }
+    out << "\n";
+
+    // Summary
+    int varCount = 0, objCount = 0, methodCount = 0, otherCount = 0;
+    for (const BrowseEntry& e : entries) {
+        if      (e.nodeClass == QStringLiteral("Variable")) ++varCount;
+        else if (e.nodeClass == QStringLiteral("Object"))   ++objCount;
+        else if (e.nodeClass == QStringLiteral("Method"))   ++methodCount;
+        else                                                ++otherCount;
+    }
+    out << "SUMMARY\n";
+    out << sumRule << "\n";
+    out << "  Total nodes:  " << entries.size() << "\n";
+    out << "  Variables:    " << varCount    << "\n";
+    out << "  Objects:      " << objCount    << "\n";
+    out << "  Methods:      " << methodCount << "\n";
+    if (otherCount > 0)
+        out << "  Other:        " << otherCount << "\n";
+    out << "  Namespaces:   " << namespaceIndexToUri_.size() << "\n";
+    out << "  Browse time:  " << elapsedMs << " ms\n";
+
+    f.close();
+    qInfo().noquote() << "PlcLink: dump ->" << path
+                      << QStringLiteral("(%1 nodes, %2 ms)")
+                            .arg(entries.size()).arg(elapsedMs);
+
+    // Sidecar machine-readable JSON next to the human dump. Consumed by
+    // tools/symbol-picker/ to render the tree without re-parsing the
+    // glyph-laden text. Same atomic semantics: open WriteOnly|Truncate.
+    const QString jsonPath = dir + QStringLiteral("/plc-browse.json");
+    QFile jf(jsonPath);
+    if (!jf.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        qWarning() << "PlcLink: open json sidecar" << jsonPath << "failed —"
+                   << jf.errorString();
+        return;
+    }
+    QJsonObject root;
+    root.insert(QStringLiteral("generated"),
+                QDateTime::currentDateTime().toString(Qt::ISODate));
+    root.insert(QStringLiteral("endpoint"),         serverUrl_);
+    root.insert(QStringLiteral("appRootNodeId"),    appRootNodeId_);
+    root.insert(QStringLiteral("appNamespaceIndex"), appNamespaceIndex_);
+    root.insert(QStringLiteral("browseTimeMs"),     elapsedMs);
+
+    QJsonArray nsArr;
+    QList<int> nsIndices = namespaceIndexToUri_.keys();
+    std::sort(nsIndices.begin(), nsIndices.end());
+    for (int idx : nsIndices) {
+        QJsonObject ns;
+        ns.insert(QStringLiteral("index"), idx);
+        ns.insert(QStringLiteral("uri"),   namespaceIndexToUri_.value(idx));
+        nsArr.append(ns);
+    }
+    root.insert(QStringLiteral("namespaces"), nsArr);
+
+    QJsonArray nodesArr;
+    for (const BrowseEntry& e : entries) {
+        QJsonObject n;
+        n.insert(QStringLiteral("id"),       e.nodeId);
+        n.insert(QStringLiteral("parentId"), e.parentNodeId);
+        n.insert(QStringLiteral("name"),     e.browseName);
+        n.insert(QStringLiteral("class"),    e.nodeClass);
+        n.insert(QStringLiteral("depth"),    e.depth);
+        nodesArr.append(n);
+    }
+    root.insert(QStringLiteral("nodes"), nodesArr);
+
+    // Compact form keeps the file small (5000-node dump is ~600 KB).
+    jf.write(QJsonDocument(root).toJson(QJsonDocument::Compact));
+    jf.close();
+    qInfo().noquote() << "PlcLink: json ->" << jsonPath;
+#else
+    Q_UNUSED(entries)
+    Q_UNUSED(childrenByParent)
+    Q_UNUSED(elapsedMs)
 #endif
 }
 

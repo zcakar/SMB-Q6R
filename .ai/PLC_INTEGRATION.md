@@ -94,14 +94,53 @@ görüntüleyici. Off-line pendant durumunda bile program akışı çalışır.
 ### 4.3 Node ID Formatı (KEŞFEDİLDİ)
 
 ```
-Application root: ns=4;s=|var|MAT LC-C07.Application
-PLC device:       ns=4;s=|plc|MAT LC-C07
-Variable:         ns=4;s=|var|MAT LC-C07.Application.<GVL>.<VarName>
+Application root:    ns=4;s=|var|MAT LC-C07.Application
+PLC device:          ns=4;s=|plc|MAT LC-C07
+GVL container:       ns=4;s=|appo|MAT LC-C07.Application.<GVL>
+Variable:            ns=4;s=|var|MAT LC-C07.Application.<GVL>.<VarName>
+Variable property:   ns=4;s=|vprop|MAT LC-C07.Application.<Manufacturer|Model|...>
 ```
+
+**Identifier prefix taksonomisi** (CodeSys konvansiyonu, OPC UA spec'ine ait değil):
+
+| Prefix    | Anlam                                        | Örnek |
+|-----------|----------------------------------------------|-------|
+| `\|plc\|` | PLC device root                              | `\|plc\|MAT LC-C07` |
+| `\|var\|` | Okunabilir/yazılabilir değişken instance     | `\|var\|...GVL.Enable` |
+| `\|appo\|`| Application object — POU/GVL scope container | `\|appo\|...Application.GlobalVars` |
+| `\|vprop\|` | Variable property — meta-data alanı (Manufacturer, Model, SerialNumber) | `\|vprop\|...Application.Manufacturer` |
 
 **Önemli:** Symbol XML'deki proje adı (`CodeSysSP20_3Axis_CNC_SMB_LAZER_...`)
 node ID'lerde GEÇMİYOR. Sadece **PLC device name** (`MAT LC-C07`) +
 sabit `Application` segment'i.
+
+**Namespace index uyarısı:** `ns=4` CodeSys'in mevcut runtime + library
+kombinasyonu için **tesadüfen** sabit görünüyor. Spec açısından namespace
+index sunucu-spesifiktir ve şu durumlarda kayabilir:
+- yeni library import edilirse,
+- runtime versiyonu değişirse (3.5.x → 3.5.y),
+- yeni IoDrv (EtherCAT/Modbus master) eklenirse Application'dan önce kayıt yapabilir.
+Sabit kalan tek bilgi **URI**'dir. Bu PLC'de canlı `NamespaceArray` (2026-06-04):
+
+| Index | URI |
+|-------|-----|
+| 0 | `http://opcfoundation.org/UA/` |
+| 1 | `urn:SMB:SMB:MAT%20LC-C07:OPCUA:Server` |
+| 2 | `http://opcfoundation.org/UA/DI/` (Device Integration) |
+| 3 | `http://PLCopen.org/OpcUa/IEC61131-3/` |
+| **4** | **`CODESYSSPV3/3S/IecVarAccess`** ← Application + GVL'ler buradadır |
+
+PlcLink artık bağlantıda `Server_NamespaceArray` (`ns=0;i=2255`) okuyup
+`namespaceIndexToUri_` map'ini dolduruyor; aynı bootstrap'te de
+`|var|...Application` deseniyle eşleşen ilk düğümü bulup `appRootNodeId_` +
+`appNamespaceIndex_` alanlarına yazıyor. Browse her bağlantıda buradan
+seed edildiği için ns=4 hardcode'u artık sadece QML watch listesinde
+duruyor; runtime tarafı dinamik. Sıradaki adım (Faz 2): QML watch tablosunu
+URI + identifier ikilisi olarak tutup runtime substitusyonu eklemek.
+
+Her başarılı browse, ek olarak `/userfs/smb-q6r/plc-browse.txt` dosyasına
+tam ağacı yazıyor (namespace tablosu + indented tree + summary). Reboot'ta
+kalır, üzerine yazılır — kopyala-yapıştır için hazır.
 
 Örnekler:
 - `ns=4;s=|var|MAT LC-C07.Application.GVL.Enable`
